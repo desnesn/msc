@@ -2,6 +2,8 @@
 #define IO_H
 
 #include "alloc.h"
+#include <sys/time.h>
+//#include <omp.h>
 
 //////////////////////////////////////////////////////////
 //			MACROS				//
@@ -77,7 +79,7 @@
 //			SEISMIC FUNCTIONS			//
 //////////////////////////////////////////////////////////////////
 
-double interp_trace(float, int, float, float, float *);
+float interp_trace(float, int, float, float, float *);
 
 void get_vel_model(float*, FILE*, size_t, size_t, size_t);
 
@@ -105,6 +107,9 @@ int minval(int *, int);
 //			COPY FUNCTION				//
 //////////////////////////////////////////////////////////////////
 
-void copy1float(float *, float *, size_t);
+//void copy1float(float *, float *, size_t);
+
+int timeval_subtract(struct timeval *, struct timeval *, struct timeval *);
+//void timeval_print(struct timeval *);
 
 #endif
