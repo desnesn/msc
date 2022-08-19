@@ -1,19 +1,27 @@
 EXEC	= main 
 CXX	= gcc
-OBJECTS	= io.o
+OBJECTS	= io.o memcpy.o alloc.o
 LIBS	= -lm
 MAIN	= main.c
+OPTIONS	= -O3 -Wall
 
-main: clean io
-	$(CXX) -Wall -o $(EXEC) $(OBJECTS) $(MAIN) $(LIBS)
+main:	clean alloc memcpy_d io  
+	$(CXX) $(OPTIONS) -o $(EXEC) $(OBJECTS) $(MAIN) $(LIBS)
+
 io:
-	$(CXX) -c io.c
+	$(CXX) $(OPTIONS) -c io.c
+
+alloc:
+	$(CXX) $(OPTIONS) -c alloc.c
+
+memcpy_d:
+	$(CXX) $(OPTIONS) -c memcpy.c
 
 edit_header:
 	$(CXX) -Wall -o edit_header edit_header.c
 
 copy_dca:
-	scp -P2222 rtm_migrated.su username@FQDN:/home/username/public_html/rtm/
+	scp -P2222 rtm_migrated_otimizado.su username@FQDN:/home/username/public_html/rtm/
 #scp -P2222 ../fortran/out.su  username@FQDN:/home/username/public_html/rtm/
 
 clean:

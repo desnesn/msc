@@ -556,7 +556,7 @@ typedef struct {	/* segy - trace identification header */
 } su_header;
 
 typedef struct {
-	su_header	tr_header;
+	su_header	*tr_header;
 	float		*tr_data;
 } su_trace;
 
