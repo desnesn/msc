@@ -1,14 +1,14 @@
 EXEC	= main 
 CXX	= gcc
-OBJECTS	= io.o memcpy.o alloc.o
+OBJECTS	= io.o alloc.o
 LIBS	= -lm
 MAIN	= main.c
 OPTIONS	= -O3 -Wall -fopenmp
 
-main:	clean alloc memcpy_d io  
+main:	clean alloc io  
 	$(CXX) $(OPTIONS) -o $(EXEC) $(OBJECTS) $(MAIN) $(LIBS)
 
-exec:	clean alloc memcpy_d io  
+exec:	clean alloc io  
 	$(CXX) $(OPTIONS) -o $(EXEC) $(OBJECTS) $(MAIN) $(LIBS)
 	./exec_tests.sh
 
@@ -17,9 +17,6 @@ io:
 
 alloc:
 	$(CXX) $(OPTIONS) -c alloc.c
-
-memcpy_d:
-	$(CXX) $(OPTIONS) -c memcpy.c
 
 edit_header:
 	$(CXX) -Wall -o edit_header edit_header.c

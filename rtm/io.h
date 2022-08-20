@@ -2,6 +2,7 @@
 #define IO_H
 
 #include "alloc.h"
+#include <sys/time.h>
 //#include <omp.h>
 
 //////////////////////////////////////////////////////////
@@ -106,6 +107,9 @@ int minval(int *, int);
 //			COPY FUNCTION				//
 //////////////////////////////////////////////////////////////////
 
-void copy1float(float *, float *, size_t);
+//void copy1float(float *, float *, size_t);
+
+int timeval_subtract(struct timeval *, struct timeval *, struct timeval *);
+//void timeval_print(struct timeval *);
 
 #endif

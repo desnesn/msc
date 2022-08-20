@@ -16,12 +16,6 @@ int* alloc2int(size_t width, size_t length)
     	return  (int*) malloc(sizeof(int)*width*length);
 }
 
-//	allocate a 3-d array of ints		//
-int* alloc3int(size_t width, size_t length, size_t dim)
-{
-	return  (int*) malloc(sizeof(int)*width*length*dim);
-}
-
 //////////////////////////////////////////////////
 //		ALLOC - FLOAT			//
 //////////////////////////////////////////////////
@@ -36,12 +30,6 @@ float* alloc1float(size_t length)
 float* alloc2float(size_t width, size_t length)
 {
     	return  (float*) malloc(sizeof(float)*width*length);
-}
-
-//	allocate a 3-d array of ints		//
-float* alloc3float(size_t width, size_t length, size_t dim)
-{
-	return  (float*) malloc(sizeof(float)*width*length*dim);
 }
 
 //////////////////////////////////////////////////
@@ -70,12 +58,6 @@ void free2int(int *vet)
     free(vet);
 }
 
-// 	free a 3-d array of ints 		//
-void free3int(int *vet)
-{
-    free(vet);
-}
-
 //////////////////////////////////////////////////
 //		DEALLOC - FLOAT			//
 //////////////////////////////////////////////////
@@ -88,12 +70,6 @@ void free1float(float *vet)
 
 // 	free a 2-d array of floats 		//
 void free2float(float *vet)
-{
-	free(vet);
-}
-
-// 	free a 3-d array of floats 		//
-void free3float(float *vet)
 {
 	free(vet);
 }

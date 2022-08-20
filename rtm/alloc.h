@@ -8,7 +8,7 @@
 
 #include "segy.h"
 
-#include "memcpy.h"
+//#include "memcpy.h"
 
 //////////////////////////////////////////////////
 //		ALLOC - INT			//
@@ -20,9 +20,6 @@ int *alloc1int(size_t);
 //	allocate a 2-d array of ints		//
 int *alloc2int(size_t n_lin, size_t n_col);
 
-//	allocate a 3-d array of ints		//
-int *alloc3int(size_t, size_t, size_t);
-
 //////////////////////////////////////////////////
 //		ALLOC - FLOAT			//
 //////////////////////////////////////////////////
@@ -32,9 +29,6 @@ float *alloc1float(size_t);
 
 // 	allocate a 2-d array of float		//
 float *alloc2float(size_t, size_t);
-
-//	allocate a 3-d array of ints		//
-float *alloc3float(size_t, size_t, size_t);
 
 //////////////////////////////////////////////////
 //		ALLOC - SU_TRACE		//
@@ -53,9 +47,6 @@ void free1int(int *);
 // 	free a 2-d array of ints 		//
 void free2int(int *);
 
-// 	free a 3-d array of ints 		//
-void free3int(int *);
-
 //////////////////////////////////////////////////
 //		DEALLOC - FLOAT			//
 //////////////////////////////////////////////////
@@ -65,9 +56,6 @@ void free1float(float *);
 
 // 	free a 2-d array of floats 		//
 void free2float(float *);
-
-// 	free a 3-d array of floats 		//
-void free3float(float *);
 
 //////////////////////////////////////////////////
 //		DEALLOC - SU_TRACE		//

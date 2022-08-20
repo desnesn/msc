@@ -30,25 +30,34 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
+//#include <sys/time.h>
 #include <omp.h>
 
 #include "io.h"
 
-struct timeval start, finish;
+struct timeval start, finish, diff;
+struct timeval start_princ, finish_princ, diff_princ;
 
 int get_exec_time(struct timeval,struct timeval);
+int get_exec_time_sec(struct timeval,struct timeval);
 
 #define UNUSED __attribute__ ((unused))
 
 int main(int argc, char *argv[])
 {
+	gettimeofday(&start,NULL);
+
+	//////////////////////////////////////////////////////////////////////////////////
+	//				PRE-INIT					//
+	//////////////////////////////////////////////////////////////////////////////////    
+
 	if (argc!=3) { printf("Erro nas opcoes de entrada\n"); return -1; }
-	int n_threads = atoi(argv[1]);
+
+	int n_threads = atoi(argv[2]);
 
 	//	g - modelo grande		//
 	//	p - modelo pequeno		//
-	char modelo = (argv[2])[0];
+	char modelo = (argv[1])[1];
 
 	//	0 - programa nao paralelo	//
 	//	1 - programa paralelo		//
@@ -81,7 +90,9 @@ int main(int argc, char *argv[])
 
 	float UNUSED *vel;
 
-	float UNUSED *p;
+	float UNUSED *p_anterior;
+	float UNUSED *p_atual;
+	float UNUSED *p_aux;
 
 	float UNUSED dswap;
 
@@ -150,7 +161,7 @@ int main(int argc, char *argv[])
     		dx = 4.0;    //d2
 		//	Dados do modelo de velocidade-GRANDE 						//TODO: argc e argv
 	}
-	else{ printf("Erro no modelo de velocidades\n"); return -1; }
+	else{ printf("Erro na opcao do modelo de velocidades\n"); return -1; }
 
 	// 	Frequencia da fonte 							//
 	freq = 12.0;
@@ -180,8 +191,14 @@ int main(int argc, char *argv[])
 
 	//	Alocacao de vetores e matrizes 						//
 
-	p = alloc3float(nzz,nxx,2);    // Campos de pressão: p[851][2401][2]
-	if(p==NULL) { printf("Allocation of p[%d,%d,%d] failed!!!\n",nzz,nxx,2); return -1;}
+	//p = alloc3float(nzz,nxx,2);    // Campos de pressão: p[851][2401][2]
+	//if(p==NULL) { printf("Allocation of p[%d,%d,%d] failed!!!\n",nzz,nxx,2); return -1;}
+
+	p_atual = alloc2float(nzz,nxx);    // Campos de pressão: p[851][2401][2]
+	if(p_atual==NULL) { printf("Allocation of p_atual[%d,%d] failed!!!\n",nzz,nxx); return -1;}
+
+	p_anterior = alloc2float(nzz,nxx);    // Campos de pressão: p[851][2401][2]
+	if(p_anterior==NULL) { printf("Allocation of p_anterior[%d,%d] failed!!!\n",nzz,nxx); return -1;}
 
 	vel = alloc2float(nzz,nxx);      // Matriz de velocidade: vel[851,2401]
 	if(vel==NULL) { printf("Allocation of vel[%d,%d] failed!!!\n",nzz,nxx); return -1;}
@@ -222,7 +239,7 @@ int main(int argc, char *argv[])
 	
 	if( (vel_file = fopen(vel_name, "rb")) == NULL ) { printf("Error opening vel. model file\n"); return -1; }	
 
-	gettimeofday(&start,NULL);
+//	gettimeofday(&start,NULL);
 
 	//	Leitura do modelo de velocidades 					//
 	get_vel_model(vel, vel_file, nz, nx, nborda);	
@@ -262,9 +279,9 @@ int main(int argc, char *argv[])
 		}
    	}
 
-	gettimeofday(&finish,NULL);
+//	gettimeofday(&finish,NULL);
 
-	printf("Tempo de criacao do modelo de velocidades: %d ms\n",get_exec_time(start,finish));
+//	printf("Tempo de criacao do modelo de velocidades: %d ms\n",get_exec_time(start,finish));
 
 	printf("\tModelo de velocidades\n");
 	printf("\tnz: %d   ",nz);
@@ -282,7 +299,7 @@ int main(int argc, char *argv[])
 	//////////////////////////////////////////////////////////////////////////////////
 
 	//	Dados dos dados sismicos						//TODO: argc e argv
-    	nshots 		= 1;//240;
+    	nshots 		= 1;
     	ngeophones 	= 96;
 	ns		= 725;
 	ntrc   		= nshots*ngeophones;
@@ -296,10 +313,10 @@ int main(int argc, char *argv[])
 	memset(trace.tr_header, 0, sizeof(su_header));
 	trace.tr_data = alloc1float(ns);
 	if(trace.tr_data==NULL) { printf("Allocation of trace.tr_data[%d] failed!!!\n",ns); return -1; }
-
+	
 	//	Dados do primeiro traco							//
 	get_tr(0, &trace, ns, su_file);
-	
+
 	isx = trace.tr_header->sx;
 
 	ns = trace.tr_header->ns;
@@ -342,15 +359,21 @@ int main(int argc, char *argv[])
 
 	printf("|---------------------------------------------------------------------------|\n");
 
-    	shotgather = alloc1su_trace(ngeophones);
-	if(shotgather==NULL) { printf("Allocation of shotgather[%d] failed!!!\n",ngeophones); return -1;}
+	//TODO: transformar shotgather em uma matriz e criar um vetor shotgather_header
 
-	for(itrc=0;itrc<ngeophones;++itrc)
+    	shotgather = alloc1su_trace(ntrc);
+	if(shotgather==NULL) { printf("Allocation of shotgather[%d] failed!!!\n",ntrc); return -1;}
+
+	//TODO: otimizar isto
+	for(itrc=0;itrc<ntrc;++itrc)
 	{
+		shotgather[itrc].tr_header = (su_header*) malloc( sizeof(su_header) );
 		shotgather[itrc].tr_data = alloc1float(ns);
+
 		if(shotgather[itrc].tr_data==NULL) 
-		{ printf("Allocation of shotgather[itrc].tr_data[%d] failed!!!\n",ngeophones); return -1; }
+		{ printf("Allocation of shotgather[%d].tr_data[%d] failed!!!\n",itrc,ns); return -1; }
 	}
+	
 
 	igz = alloc1int(ngeophones); // correcao devida a profundidade da fonde e do receptor numa levantamento marinho //
 	if(igz==NULL) { printf("Allocation of igz[%d] failed!!!\n",ngeophones); return -1;}
@@ -384,17 +407,23 @@ int main(int argc, char *argv[])
 	printf("ndtrtm: %d   ",ndtrtm);
 	printf("nt: %d   ",nt);
 
-	//paralelizar
-    	for(ix=0;ix<nxx;++ix) // (v[z][x])^2
-        	for(iz=0;iz<nzz;++iz)
-            		vel[(iz) + (ix*nzz)] = pow( (vel[(iz) + (ix*nzz)]*dt/dx), 2.0);
-
 	//	pulso fonte - ricker 						//
 	beta = D_PI*freq*dt;
     	it0 = (int) ceil( 1.0/(freq*dt) );
 
 	printf("beta: %lf\t",beta);
 	printf("it0: %d\n",it0);
+
+//	gettimeofday(&start,NULL);//mudei de lugar//testar melhor esta paralelizacao
+
+	#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) private(ix,iz) shared(vel,nxx,nzz,dt,dx)
+    	for(ix=0;ix<nxx;++ix) // (v[z][x])^2
+        	for(iz=0;iz<nzz;++iz)
+            		vel[(iz) + (ix*nzz)] = pow( (vel[(iz) + (ix*nzz)]*dt/dx), 2.0);
+
+//	gettimeofday(&finish,NULL);
+
+//	printf("Tempo de v^2: %d ms\n",get_exec_time(start,finish));
 
 	memset(gama_z, 0, nzz * sizeof(float) );
 
@@ -426,33 +455,41 @@ int main(int argc, char *argv[])
 	memset(imag, 0, sizeof(float) * nz * nx);
 	memset(imag_filter, 0, sizeof(float) * nz * nx);
 
-//	FILE *cshot_file;	// secao zero-offset do tiro atual //TODO
-//	char *cshot_name = "cshot.su";
-
 	FILE *fdbackward_file;	// campo retropropagado dos dados //
 	char *fdbackward_name = "fdbackward.bin";
 
 	FILE *fdforward_file;	// campo da fonte propagado //
-	char *fdforward_name = "fdforward.bin";
+	char *fdforward_name;
+
+	if(write_forward_file)
+		fdforward_name = "fdforward.bin";
 
 	FILE *out_file;		// saida - dados migrados
 	char *out_name = "rtm_migrated_otimizado.su";
 
     	ilanco=0;
 
-//	int tot_mig_tr=0;
-
-	float *time_swap;
-
 	printf("|---------------------------------------------------------------------------|\n");
 
 	nrec = ntrc/nshots; // 96
 
-	//gettimeofday(&start,NULL);
+	//TODO: testar depois sem fseek
 
-	// Loop sobre shots //
-	
-    	for(ishot=0;ishot<nshots;++ishot) // nshots
+	// lendo os dados do marmousi //	
+	for(itrc=0;itrc<ntrc;++itrc)
+     	{
+		get_tr(itrc, &shotgather[itrc], ns, su_file);
+	}
+
+	gettimeofday(&finish,NULL);
+
+	timeval_subtract(&diff, &finish, &start);
+	printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
+
+	gettimeofday(&start_princ,NULL);
+
+	// Loop sobre shots //	
+    	for(ishot=0;ishot<nshots;++ishot)
  	{
 		printf("\n\n");
 		printf("|###########################################################################|\n");
@@ -461,39 +498,25 @@ int main(int argc, char *argv[])
 
         	ircv = 0; // numero de tracos para common-shot //
 		
-		//nrec = shotidx[ishot+1]-shotidx[ishot]; // ntrc/nshots; // 96
-
-		//if( (cshot_file = fopen(cshot_name, "wb")) == NULL ) { printf("Error opening shot file\n"); return -1; }
-		//if( (out_file = fopen(out_name, "wb")) == NULL ) { printf("Error opening rtm_migrated file\n"); return -1; }
-		
         	for(itrc=shotidx[ishot];itrc<shotidx[ishot+1];++itrc)
         	{
-			// lendo do dado e escrevendo o commom-shot //
-			get_tr(itrc, &trace, ns, su_file);
-            		//put_tr(ircv, &trace, ns, cshot_file);
-			
-		      	shotgather[ircv].tr_header     = trace.tr_header;
-
-			copy1float(shotgather[ircv].tr_data, trace.tr_data, ns);
-
 			//	armazena posicao do traco ma malha do modelo 		//
 			//	converte unidades usando a palavra scalco do header 	//
 			// 	=== ATENCAO === 					//
 			// 	as palavras gelev e sdepth devem ser setadas no header 	//
-			igx[ircv] = (int) floor( ( ((float)(trace.tr_header->gx)) - ((float)x0) ) * (factor/dx) ) + ixb;
+			igx[ircv] = (int) floor( ( ((float)(shotgather[itrc].tr_header->gx))-((float)x0) )*(factor/dx) )+ixb;
 
-			igz[ircv] = (int) floor( (-1.0)*((float)(trace.tr_header->gelev)) * (factor/dz) ) + izb;
+			igz[ircv] = (int) floor( (-1.0)*((float)(shotgather[itrc].tr_header->gelev)) * (factor/dz) ) + izb;
 		
-			isx 	  = (int) floor( ( ((float)(trace.tr_header->sx)) - ((float)x0) ) * (factor/dx) ) + ixb;
+			isx 	  = (int) floor( ( ((float)(shotgather[itrc].tr_header->sx))-((float)x0) )*(factor/dx) )+ixb;
 
-			isz       = (int) floor( ((float)(trace.tr_header->sdepth)) * (factor/dz) ) + izb;
+			isz       = (int) floor( ((float)(shotgather[itrc].tr_header->sdepth)) * (factor/dz) ) + izb;
 
 			ilanco    = max(ilanco, fabs(isx-igx[ircv]));
 			
 	 		++ircv;
-    		} // fim do loop dos tracos
 
-		//fclose(cshot_file);
+  		} // fim do loop dos tracos
 
 		// 	DEFINIR JANELA DE MIGRACAO 					//
 		if( LFRAC == 0 )
@@ -529,8 +552,15 @@ int main(int argc, char *argv[])
 			gama_x[ixmig1+ix-1] = gama;
 		}
 
+		//gettimeofday(&start,NULL);
+
 		// JANELA BLACKMANN para suavizar borda da imagem //
+		//#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) private(ix) shared(nx,window_x)
 		for(ix=0;ix<nx;++ix) window_x[ix] = 1.0; // window_x(:) = 1.0
+
+		//gettimeofday(&finish,NULL);
+
+		//printf("Tempo de window=1: %d ms\n",get_exec_time(start,finish));
 
 		for(ix=0;ix<WDWLEN;++ix)
 		{
@@ -556,14 +586,29 @@ int main(int argc, char *argv[])
 		prcv = alloc2float(nz,nmigtrc);
 		if(prcv==NULL) { printf("Allocation of prcv[%d,%d] failed!!!\n",nz,nmigtrc); return -1; }
 
-		// 	condiçao inicial: repouso 						//
-		// 	p(:,:,1) pressure field at time t-dt 					//
-		// 	p(:,:,2) pressure field at time t 					//
-		memset(p, 0, sizeof(float)*nzz*nxx*2);
+		gettimeofday(&start,NULL);
 
-		time_swap =  alloc2float(nzz,(ixx1-ixx0));
-		if(time_swap==NULL) { printf("Allocation of time_swap[%d,%d] failed!!!\n",nzz,(ixx1-ixx0)); return -1; }
+		// 	condiçao inicial: repouso 		//
+		// 	p(:,:,1) pressure field at time t-dt 	//
+		// 	p(:,:,2) pressure field at time t 	//
+
+		//memset(p_atual, 0, sizeof(float)*nzz*nxx);
+		//memset(p_anterior, 0, sizeof(float)*nzz*nxx);
+		#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) 		\
+			private(ix,iz) shared(nxx,nzz,p_atual,p_anterior)
+		for(ix=0;ix<nxx;++ix)
+		{
+			for(iz=0;iz<nzz;++iz)
+			{
+				p_atual[ (iz) + (ix*nzz)]    = 0.0;
+				p_anterior[ (iz) + (ix*nzz)] = 0.0;
+			}
+		}
 	
+		gettimeofday(&finish,NULL);
+
+		if(it==0) printf("Tempo - zerando os campos: %d ms\n",get_exec_time(start,finish));
+
 		irec=0;
 		iframe=0;
 
@@ -574,9 +619,10 @@ int main(int argc, char *argv[])
 
 			gettimeofday(&start,NULL);
 			
-			//omp_set_num_threads(n_threads);
-			#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) private(source,laplacian,ix,iz,itrc,gama,invpgama,mgama,iconv) \
-				shared(ixx0,ixx1,nzz,nxx,nrec,igx,igz,dx,ttotal,t,ns,dtrec,shotgather,gama_x,gama_z,deriv2,p,vel)
+			#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) 		\
+				private(source,laplacian,ix,iz,itrc,gama,invpgama,mgama,iconv) 			\
+				shared(ixx0,ixx1,nzz,nxx,nrec,igx,igz,dx,ttotal,t,ns,dtrec,shotgather,gama_x,	\
+					gama_z,deriv2,p_atual,p_anterior,vel,ishot)
 			for(ix=(ixx0+DRVLEN);ix<(ixx1-DRVLEN);++ix)
 			{
 				for(iz=(DRVLEN-1);iz<(nzz-DRVLEN);++iz)
@@ -587,7 +633,10 @@ int main(int argc, char *argv[])
 					{
 						if( (ix == (igx[itrc]-1)) && (iz == (igz[itrc]-1)) )
 						{
-							source = (dx*dx) * interp_trace(ttotal-t,ns,0.0,dtrec,shotgather[itrc].tr_data);
+							source = (dx*dx) * \
+								interp_trace(ttotal-t,ns,0.0,dtrec,		\
+										shotgather[ itrc + (ishot*nrec) ].tr_data);
+										//shotgather[itrc].tr_data);
 						}
 					}
 
@@ -596,22 +645,22 @@ int main(int argc, char *argv[])
 					mgama     = 1.0 - gama;
 
 					//	aumentar a ordem do operador de diferencas finitas: 		//
-					laplacian = 2.0 * deriv2[0] * p[(1*nxx*nzz) + (iz) + (ix*nzz)];
+					laplacian = 2.0 * deriv2[0] * p_atual[ (iz) + (ix*nzz)];
 
 					for(iconv=1;iconv<DRVLEN;++iconv)
 					{
 						laplacian = laplacian + deriv2[iconv] 				* \
 			      				(							  \
-								p[(1*nxx*nzz) + (iz-iconv) + (ix*nzz)] 		+ \ 
-								p[(1*nxx*nzz) + (iz+iconv) + (ix*nzz)] 		+ \
-								p[(1*nxx*nzz) + (iz) + ((ix-iconv)*nzz)]	+ \
-								p[(1*nxx*nzz) + (iz) + ((ix+iconv)*nzz)] 	  \
+								p_atual[ (iz-iconv) + (ix*nzz) ] 	+ \
+								p_atual[ (iz+iconv) + (ix*nzz) ] 	+ \
+								p_atual[ (iz) + ((ix-iconv)*nzz) ]	+ \
+								p_atual[ (iz) + ((ix+iconv)*nzz) ] 	  \
 							);
 					}
 
-					p[(0*nxx*nzz) + (iz) + (ix*nzz)] = invpgama * ( 	 2.0 * \ 
-							    p[(1*nxx*nzz) + (iz) + (ix*nzz)] - mgama * \
-							    p[(0*nxx*nzz) + (iz) + (ix*nzz)] + 	       \
+					p_anterior[ (iz) + (ix*nzz) ] = invpgama * ( 	 2.0 * \
+							    p_atual[ (iz) + (ix*nzz) ] - mgama * \
+							    p_anterior[ (iz) + (ix*nzz) ] + 	       \
 						            vel[(iz) + (ix*nzz)] * ( laplacian - source ) );
 				}
 			}
@@ -620,25 +669,11 @@ int main(int argc, char *argv[])
 
 			if(it==0) printf("Tempo - primeira modelagem: %d ms\n",get_exec_time(start,finish));
 
-			// new swap fields
-			memcpy(time_swap, p + (1*nxx*nzz) + ((ixx0)*nzz) , nzz * (ixx1-ixx0) * sizeof(float));
-			memcpy(p + (1*nxx*nzz) + ((ixx0)*nzz), p + (0*nxx*nzz) + ((ixx0)*nzz) , nzz * (ixx1-ixx0) \
-													 * sizeof(float));
-			memcpy(p + (0*nxx*nzz) + ((ixx0)*nzz), time_swap , nzz * (ixx1-ixx0) * sizeof(float));
-			
-			/*
-			//	swap fields	//
-			for(ix=ixx0; ix<ixx1; ++ix)
-			{
-				for(iz=0; iz<nzz; ++iz)
-				{
-					dswap = p[(1*nxx*nzz) + (iz) + (ix*nzz)];
-					p[(1*nxx*nzz) + (iz) + (ix*nzz)] = p[(0*nxx*nzz) + (iz) + (ix*nzz)];
-					p[(0*nxx*nzz) + (iz) + (ix*nzz)] = dswap;
-				}
-			}
-			*/
-
+			// mega - new swap fields
+			p_aux      = p_atual;
+			p_atual    = p_anterior;
+			p_anterior = p_aux;
+	
 			if( ( it % ndtrtm) == 0)
 			{
 				//printf("it[%d]\tndtrtm[%d]\n",it,ndtrtm);
@@ -646,10 +681,10 @@ int main(int argc, char *argv[])
 					printf("\tit: %d - backward frames %d completed\n", it, iframe);
 
 				gettimeofday(&start,NULL);
-				//omp_set_num_threads(n_threads);
+
 				//#pragma omp parallel for default(none) private(ix) shared(nmigtrc,prcv,nz,p,nxx,nzz,ixmig0)
 				for(ix=0;ix<nmigtrc;++ix)
-					memcpy(prcv + (ix*nz), p + (1*nxx*nzz) + ((ixmig0-1+ix)*nzz) + (nborda), \
+					memcpy(prcv + (ix*nz), p_atual + ((ixmig0-1+ix)*nzz) + (nborda), \
 													nz * sizeof(float) );
 				gettimeofday(&finish,NULL);
 
@@ -668,7 +703,7 @@ int main(int argc, char *argv[])
 	
 		fclose(fdbackward_file);
 
-		free2float(prcv);
+		//free2float(prcv);
 
 		nframes = iframe;
 
@@ -687,15 +722,25 @@ int main(int argc, char *argv[])
 		if(write_forward_file)
 		if((fdforward_file=fopen(fdforward_name,"wb"))==NULL){printf("Error opening forward source file\n");return -1;}
 
-		//if( (out_file = fopen(out_name, "wb")) == NULL ) {printf("Error opening rtm_migrated file\n"); return -1; }
-
 		// 	condiçao inicial: repouso 		//
 		// 	p(:,:,1) pressure field at time t-dt 	//
 		// 	p(:,:,2) pressure field at time t 	//
-		memset(p, 0, sizeof(float)*nzz*nxx*2);
 
-		prcv = alloc2float(nz,nmigtrc);
-		if(prcv==NULL) { printf("Allocation of prcv[%d,%d] failed!!!\n",nz,nmigtrc); return -1;}
+		//memset(p_atual, 0, sizeof(float)*nzz*nxx);
+		//memset(p_anterior, 0, sizeof(float)*nzz*nxx);
+		#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) 		\
+			private(ix,iz) shared(nzz,nxx,p_atual,p_anterior)
+		for(ix=0;ix<nxx;++ix)
+		{
+			for(iz=0;iz<nzz;++iz)
+			{
+				p_atual[ (iz) + (ix*nzz)]    = 0.0;
+				p_anterior[ (iz) + (ix*nzz)] = 0.0;
+			}
+		}
+
+		//prcv = alloc2float(nz,nmigtrc);
+		//if(prcv==NULL) { printf("Allocation of prcv[%d,%d] failed!!!\n",nz,nmigtrc); return -1;}
 		
 		psrc = alloc2float(nz,nmigtrc);
 		if(psrc==NULL) { printf("Allocation of psrc[%d,%d] failed!!!\n",nz,nmigtrc); return -1;}
@@ -713,9 +758,10 @@ int main(int argc, char *argv[])
 
 			gettimeofday(&start,NULL);
 
-			//omp_set_num_threads(n_threads);
-			#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) private(source,laplacian,ix,iz,itrc,gama,invpgama,mgama,iconv) \
-			shared(isx,isz,fonte,ixx0,ixx1,nzz,nxx,nrec,dx,ttotal,t,ns,dtrec,shotgather,gama_x,gama_z,deriv2,p,vel)
+			#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) 	\
+				private(source,laplacian,ix,iz,itrc,gama,invpgama,mgama,iconv) 		\
+				shared(isx,isz,fonte,ixx0,ixx1,nzz,nxx,nrec,dx,ttotal,t,ns,dtrec,	\
+					shotgather,gama_x,gama_z,deriv2,p_anterior,p_atual,vel)
 			for(ix=(ixx0+DRVLEN);ix<(ixx1-DRVLEN);ix++)
 			{
 				for(iz=(DRVLEN-1);iz<(nzz-DRVLEN);iz++)
@@ -731,22 +777,24 @@ int main(int argc, char *argv[])
 					invpgama  = 1.0 / ( 1.0 + gama);
 					mgama     = 1.0 - gama;
 
-					laplacian = 2.0 * deriv2[0] * p[(1*nxx*nzz) + (iz) + (ix*nzz)];
+					//	aumentar a ordem do operador de diferencas finitas: 		//
+					laplacian = 2.0 * deriv2[0] * p_atual[ (iz) + (ix*nzz)];
 
 					for(iconv=1;iconv<DRVLEN;++iconv)
 					{
-						laplacian = laplacian + deriv2[iconv] * ( \
-			      					p[(1*nxx*nzz) + (iz-iconv) + (ix*nzz)] 		+ \
-								p[(1*nxx*nzz) + (iz+iconv) + (ix*nzz)] 		+ \
-								p[(1*nxx*nzz) + (iz) + ((ix-iconv)*nzz)] 	+ \
-								p[(1*nxx*nzz) + (iz) + ((ix+iconv)*nzz)] 	  \
-											);
+						laplacian = laplacian + deriv2[iconv] 				* \
+			      				(							  \
+								p_atual[ (iz-iconv) + (ix*nzz) ] 	+ \
+								p_atual[ (iz+iconv) + (ix*nzz) ] 	+ \
+								p_atual[ (iz) + ((ix-iconv)*nzz) ]	+ \
+								p_atual[ (iz) + ((ix+iconv)*nzz) ] 	  \
+							);
 					}
 
-					p[(0*nxx*nzz) + (iz) + (ix*nzz)] = invpgama * ( 		2.0	* \ 
-								p[(1*nxx*nzz) + (iz) + (ix*nzz)] - mgama 	* \ 
-								p[(0*nxx*nzz) + (iz) + (ix*nzz)] 		+ \
-								vel[(iz) + (ix*nzz)] * ( laplacian - source ) 	  );
+					p_anterior[ (iz) + (ix*nzz) ] = invpgama * ( 	 2.0 * \
+							    p_atual[ (iz) + (ix*nzz) ] - mgama * \
+							    p_anterior[ (iz) + (ix*nzz) ] + 	       \
+						            vel[(iz) + (ix*nzz)] * ( laplacian - source ) );
 				}
 			}
 			
@@ -754,24 +802,10 @@ int main(int argc, char *argv[])
 
 			if(it==0) printf("Tempo - segunda modelagem: %d ms\n",get_exec_time(start,finish));
 
-			// new swap fields
-			memcpy(time_swap, p + (1*nxx*nzz) + ((ixx0)*nzz) , nzz * (ixx1-ixx0) * sizeof(float));
-			memcpy(p + (1*nxx*nzz) + ((ixx0)*nzz), p + (0*nxx*nzz) + ((ixx0)*nzz) , nzz * (ixx1-ixx0) \
-													 * sizeof(float));
-			memcpy(p + (0*nxx*nzz) + ((ixx0)*nzz), time_swap , nzz * (ixx1-ixx0) * sizeof(float));
-
-			/*
-			//	swap fields	//
-			for(ix=ixx0; ix<ixx1; ++ix)
-			{
-				for(iz=0; iz<nzz; ++iz)
-				{
-					dswap = p[(1*nxx*nzz) + (iz) + (ix*nzz)];
-					p[(1*nxx*nzz) + (iz) + (ix*nzz)] = p[(0*nxx*nzz) + (iz) + (ix*nzz)];
-					p[(0*nxx*nzz) + (iz) + (ix*nzz)] = dswap;
-				}
-			}
-			*/
+			// mega - new swap fields
+			p_aux      = p_atual;
+			p_atual    = p_anterior;
+			p_anterior = p_aux;
 
 			if( ( it % ndtrtm) == 0)
 			{
@@ -785,10 +819,9 @@ int main(int argc, char *argv[])
 
 				gettimeofday(&start,NULL);
 
-				//omp_set_num_threads(n_threads);
 				//#pragma omp parallel for default(none) private(ix) shared(nmigtrc,psrc,nz,p,nxx,nzz,ixmig0)
 				for(ix=0;ix<nmigtrc;++ix)
-					memcpy(psrc + (ix*nz), p + (1*nxx*nzz) + ((ixmig0-1+ix)*nzz) + (nborda), \
+					memcpy(psrc + (ix*nz), p_atual + ((ixmig0-1+ix)*nzz) + (nborda), \
 													nz * sizeof(float) );
 				gettimeofday(&finish,NULL);
 	
@@ -812,17 +845,17 @@ int main(int argc, char *argv[])
 
 				gettimeofday(&start,NULL);		
 
-				//omp_set_num_threads(n_threads);
-				#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) private(ix,iz,itrc) firstprivate(imag) \
-					shared(window_x,psrc,prcv,ixmig0,ixmig1,nz)
+				//#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
+							private(ix,iz,itrc) \
+							shared(window_x,psrc,prcv,ixmig0,ixmig1,nz,nmigtrc,imag)
     				for(ix=(ixmig0-1-nborda);ix<(ixmig1-nborda);++ix)
 				{
-					itrc = ix % ( (ixmig1-nborda) - (ixmig0-1-nborda) ); //TODO: rever isto
+				//	itrc = ix % ( (ixmig1-nborda) - (ixmig0-1-nborda) ); //TODO: rever isto
 
        					for(iz=0;iz<nz;++iz)
           					imag[(iz) + (ix*nz)] = imag[(iz) + (ix*nz)]	+ \
 							( window_x[ix] * psrc[(iz) + (itrc*nz)] * prcv[(iz) + (itrc*nz)] );
-					//++itrc;
+					++itrc;
 				}
 
 				gettimeofday(&finish,NULL);
@@ -836,8 +869,6 @@ int main(int argc, char *argv[])
 		free2float(prcv);
 		free2float(psrc);
 
-		free2float(time_swap);
-
 		fclose(fdbackward_file);
 		
 		if(write_forward_file)
@@ -849,9 +880,8 @@ int main(int argc, char *argv[])
 
 		gettimeofday(&start,NULL);
 
-		//omp_set_num_threads(n_threads);
-		#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) private(laplacian,ix,iz,iconv) \
-			shared(nz,nx,deriv2,p,vel,imag,imag_filter)
+		#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) 		\
+			private(laplacian,ix,iz,iconv) shared(nz,nx,deriv2,vel,imag,imag_filter)
 		for(ix=(DRVLEN-1);ix<(nx-DRVLEN);ix++)
 		{
 			for(iz=(DRVLEN-1);iz<(nz-DRVLEN);iz++)
@@ -888,7 +918,7 @@ int main(int argc, char *argv[])
 
 			gettimeofday(&start,NULL);
 
-			//#pragma omp parallel for default(none) firstprivate(imagtrace) private(ix) \
+			//#pragma omp parallel for if (is_parallel) default(none) firstprivate(imagtrace) private(ix) \
 			shared(imag_filter,nz,nx,out_file)
 			for(ix=0;ix<nx;ix++)
 			{
@@ -913,7 +943,12 @@ int main(int argc, char *argv[])
 
 	} // END LOOP OF SHOTS
 
-	//gettimeofday(&finish,NULL);
+	gettimeofday(&finish_princ,NULL);
+
+	timeval_subtract(&diff_princ, &finish_princ, &start_princ);
+	printf("%ld.%06ld\n", diff_princ.tv_sec, diff_princ.tv_usec);
+
+	fprintf(stderr,"%ld.%06ld\n", diff_princ.tv_sec, diff_princ.tv_usec);
 
 	printf("\n\n|---------------------------------------------------------------------------|\n");
 	printf("\tend of migration\n");
@@ -924,6 +959,7 @@ int main(int argc, char *argv[])
 	//////////////////////////////////////////////////////////////////////////////////
 
 	//TODO: checar se todo mundo foi desalocado
+	
 	fclose(su_file);
 
 	free1int(shotidx);
@@ -940,14 +976,24 @@ int main(int argc, char *argv[])
 	free2float(imag_filter);
 	free2float(vel);
 
-	free3float(p);
+	free2float(p_anterior);
+	free2float(p_atual);
 
+	//TODO: dealocate all shotgather
 	free1su_trace(shotgather);
 
     	return 0;
 }
 
 int get_exec_time(struct timeval start,struct timeval finish)
+{
+	int msec;
+	msec = finish.tv_sec * 1000 + finish.tv_usec / 1000;
+	msec-= start.tv_sec * 1000 + start.tv_usec / 1000;
+	return msec;
+}
+
+int get_exec_time_sec(struct timeval start,struct timeval finish)
 {
 	int msec;
 	msec = finish.tv_sec * 1000 + finish.tv_usec / 1000;
