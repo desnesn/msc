@@ -5,7 +5,7 @@
 //////////////////////////////////////////////////////////////////
 
 //nt= number of samples ! t = target sample; ! t0= amostra inicial ! dt= intervalo de amostragem original //
-double interp_trace(float t, int nt, float t0, float dt, float *trace)
+float interp_trace(float t, int nt, float t0, float dt, float *trace)
 {
 	float interp_trace = 0.0;
 	//float tol = 1.0e-3;
@@ -22,8 +22,8 @@ double interp_trace(float t, int nt, float t0, float dt, float *trace)
 		itb = max(it-nlag,0); 
 		ite = min(it+nlag,nt);
 
-		//omp_set_num_threads(24);
-		//#pragma omp parallel for default(none) private(it,aux1) shared(itb,ite,aux0,trace) reduction(+: interp_trace)
+		//#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
+			private(it,aux1) shared(itb,ite,aux0,trace) reduction(+: interp_trace)
 		for(it=itb-1;it<ite;it++)
 		{
 			aux1 = aux0 - ((float)it);
@@ -32,7 +32,7 @@ double interp_trace(float t, int nt, float t0, float dt, float *trace)
    		}
 	}
 
-	return ((double)interp_trace);
+	return interp_trace;
 }
 
 void get_vel_model(float* vel, FILE *vel_file, size_t nz, size_t nx, size_t nborda)

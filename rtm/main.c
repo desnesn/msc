@@ -1,6 +1,6 @@
 /********************************************************************************/
 /*	RTM Migration 2.0 - Baseado no codigo em Fortran do Prof. Jesse Costa  	*/
-/*	Autor: Desnes A N do Ros·rio			(jesse@ufpa.br)		*/
+/*	Autor: Desnes A N do Ros√°rio			(jesse@ufpa.br)		*/
 /*	e-mail: username@gmail.com						*/
 /*										*/
 /*	FD segunda ordem no tempo-oitava ordem no espaco			*/
@@ -29,7 +29,6 @@
 /********************************************************************************/
 #include <string.h>
 
-
 #include <stdio.h>
 #include <stdlib.h>
 //#include <sys/time.h>
@@ -40,36 +39,12 @@
 struct timeval start, finish, diff;
 struct timeval start_princ, finish_princ, diff_princ;
 
-//int get_exec_time(struct timeval,struct timeval);
-//int get_exec_time_sec(struct timeval,struct timeval);
-
 #define UNUSED __attribute__ ((unused))
 
 int main(int argc, char *argv[])
 {
-	//////////////////////////////////////////////////////////////////////////////////
-	//				PRE-INIT					//
-	//////////////////////////////////////////////////////////////////////////////////    
-
-	if (argc!=3) { printf("Erro nas opcoes de entrada\n"); return -1; }
-
-	int n_threads = atoi(argv[2]);
-
-	//	g - modelo grande		//
-	//	p - modelo pequeno		//
-	char modelo = (argv[1])[1];
-
-	//	0 - programa nao paralelo	//
-	//	1 - programa paralelo		//
-	int UNUSED is_parallel;
-	is_parallel = (n_threads==1) ? 0 : 1;
-
-	//////////////////////////////////////////////////////////////////////////////////
-	//				RTM PRE-INIT					//
-	//////////////////////////////////////////////////////////////////////////////////    
-	
 	printf("|---------------------------------------------------------------------------|\n");
-	printf("|                     Reverse Time Migration - RTM 4.0                      |\n");
+	printf("|                     Reverse Time Migration - RTM 5.1                      |\n");
 	printf("|---------------------------------------------------------------------------|\n");
 
 	//	largura da borda da ordem de 3xlambda/2, lambda=Vmax/freq		//
@@ -139,6 +114,81 @@ int main(int argc, char *argv[])
 	int UNUSED ntrc, ngeophones, ishot, nshots;
 	float UNUSED factor;
 
+	int UNUSED is_parallel;
+
+	//////////////////////////////////////////////////////////////////////////////////
+	//				PRE-INIT					//
+	//////////////////////////////////////////////////////////////////////////////////    
+
+	if(argc!=4)
+	{
+		printf("MIGRA√á√ÉO REVERSA NO TEMPO PARALELA EM C/OPENMP\n");
+		printf("INSTRU√á√ïES:\t1) Renomeie o nome do arquivo do modelo de velocidades para: meu_vel_nome[nz,nx,z0,x0,dz,dx];\n");
+		printf("           \t2) Chame o programa desta forma: ./main meu_vel_nome[INT,INT,FLOAT,FLOAT,FLOAT,FLOAT] freq_fonte numero_de_threads\n");
+		return 0;
+	}
+	else
+	{
+		freq = atof(argv[2]);
+
+		n_threads = atoi(argv[3]);
+		is_parallel = (n_threads==1) ? 0 : 1;
+
+		//printf("freq: %f\n",freq);
+		//printf("n_threads: %d\n",n_threads);
+
+		char *pch_s,*pch_e;
+		pch_s=strchr(argv[1],'[');
+		pch_e=strchr(argv[1],']');
+		
+		char *vals = (char*) malloc(sizeof(char)*( (pch_e-argv[1]) - (pch_s-argv[1]) ));
+		memcpy(vals,argv[1]+(pch_s-argv[1]+1),sizeof(char)*( (pch_e-argv[1]) - (pch_s-argv[1]) - 1 ));
+
+		//printf("%s\n",vals);
+
+		char *ptr_tok = (char*) malloc(sizeof(char)*10);
+		ptr_tok = strtok(vals,",");
+		int i=0;
+
+		do
+		{
+			switch(i)
+			{
+				case 0:
+					nz = atoi(ptr_tok);
+					//printf("%d\n",nz);
+					break;
+				case 1:
+					nx = atoi(ptr_tok);
+					//printf("%d\n",nx);
+					break;
+				case 2:
+			    		z0  = atof(ptr_tok);
+					//printf("%f\n",z0);
+					break;
+				case 3:
+			    		x0  = atof(ptr_tok);
+					//printf("%f\n",x0);
+					break;
+				case 4:
+			    		dz  = atof(ptr_tok);
+					//printf("%f\n",dz);
+					break;
+				case 5:
+			    		dx  = atof(ptr_tok);
+					//printf("%f\n",dx);
+					break;
+			}
+			ptr_tok = strtok(NULL,",");
+			i++;
+		}while(ptr_tok!=NULL);		
+	}
+
+	//////////////////////////////////////////////////////////////////////////////////
+	//				RTM PRE-INIT					//
+	//////////////////////////////////////////////////////////////////////////////////    
+
+	/*
 	if(modelo=='p')
 	{
 		//	Dados do modelo de velocidade-PEQUENO					//TODO: argc e argv
@@ -165,6 +215,7 @@ int main(int argc, char *argv[])
 
 	// 	Frequencia da fonte 							//
 	freq = 12.0;
+	*/
 
 	// 	PML nos 4 lados do grid - Atenuar a energia das bordas com uma 		//
 	//	exponencial quadratica da velocidade  - Bordas para x e z no modelo	//
@@ -191,13 +242,10 @@ int main(int argc, char *argv[])
 
 	//	Alocacao de vetores e matrizes 						//
 
-	//p = alloc3float(nzz,nxx,2);    // Campos de press„o: p[851][2401][2]
-	//if(p==NULL) { printf("Allocation of p[%d,%d,%d] failed!!!\n",nzz,nxx,2); return -1;}
-
-	p_2 = alloc2float(nzz,nxx);    // Campos de press„o: p[851][2401][2]
+	p_2 = alloc2float(nzz,nxx);    // Campos de press√£o: p[851][2401][2]
 	if(p_2==NULL) { printf("Allocation of p_2[%d,%d] failed!!!\n",nzz,nxx); return -1;}
 
-	p_1 = alloc2float(nzz,nxx);    // Campos de press„o: p[851][2401][2]
+	p_1 = alloc2float(nzz,nxx);    // Campos de press√£o: p[851][2401][2]
 	if(p_1==NULL) { printf("Allocation of p_1[%d,%d] failed!!!\n",nzz,nxx); return -1;}
 
 	vel = alloc2float(nzz,nxx);      // Matriz de velocidade: vel[851,2401]
@@ -225,12 +273,12 @@ int main(int argc, char *argv[])
 
 	if(modelo=='p')
 	{
-		//	Leitura e criaÁ„o de bordas no modelo de velocidades - PEQUENO		//
+		//	Leitura e cria√ß√£o de bordas no modelo de velocidades - PEQUENO		//
 		vel_name = "marm_vel_smooth_05_05.bin";// vel[243][767]
 	}
 	else if(modelo=='g')
 	{
-		//	Leitura e criaÁ„o de bordas no modelo de velocidades - GRANDE		//
+		//	Leitura e cria√ß√£o de bordas no modelo de velocidades - GRANDE		//
 		//char *vel_name = "velocity.h@";// vel[751][2301]
 		vel_name = "velocity_smooth_05_05.bin";
 	}
@@ -238,8 +286,6 @@ int main(int argc, char *argv[])
 	FILE *vel_file;
 	
 	if( (vel_file = fopen(vel_name, "rb")) == NULL ) { printf("Error opening vel. model file\n"); return -1; }	
-
-//	gettimeofday(&start,NULL);
 
 	//	Leitura do modelo de velocidades 					//
 	get_vel_model(vel, vel_file, nz, nx, nborda);	
@@ -257,8 +303,6 @@ int main(int argc, char *argv[])
 	flt_vet_right = (float*) malloc(sizeof(float)*nz);
 	memcpy(flt_vet_right, vel + ((ixe-1)*nzz + nborda), nz*sizeof(float));
 
-	//omp_set_num_threads(n_threads);
-	//#pragma omp parallel for default(none) private(ix) shared(vel,flt_vet_left,flt_vet_right,nz,nzz,ixe)
  	for(ix=0;ix<nborda;++ix) // collum order ... super otimizado
 	{
 		memcpy(vel + (ix*nzz)     + nborda, flt_vet_left, nz*sizeof(float));
@@ -268,8 +312,6 @@ int main(int argc, char *argv[])
 	free(flt_vet_left);
 	free(flt_vet_right);
 
-	//omp_set_num_threads(n_threads);
-	//#pragma omp parallel for default(none) private(ix,iz) shared(vel,nzz,nxx,ixe,izb,ize)
 	for(ix=0;ix<nxx;++ix) // line order ... nao tem como super otimizar
     	{
         	for(iz=0;iz<(izb-1);++iz)
@@ -278,9 +320,6 @@ int main(int argc, char *argv[])
 			vel[(iz + ize) + (ix*nzz)] =  vel[(ize-1) + (ix*nzz)];
 		}
    	}
-
-//	gettimeofday(&finish,NULL);
-//	printf("Tempo de criacao do modelo de velocidades: %d ms\n",get_exec_time(start,finish));
 
 	printf("\tModelo de velocidades\n");
 	printf("\tnz: %d   ",nz);
@@ -359,7 +398,6 @@ int main(int argc, char *argv[])
 	printf("|---------------------------------------------------------------------------|\n");
 
 	//TODO: transformar shotgather em uma matriz e criar um vetor shotgather_header
-
     	shotgather = alloc1su_trace(ntrc);
 	if(shotgather==NULL) { printf("Allocation of shotgather[%d] failed!!!\n",ntrc); return -1;}
 
@@ -373,7 +411,6 @@ int main(int argc, char *argv[])
 		{ printf("Allocation of shotgather[%d].tr_data[%d] failed!!!\n",itrc,ns); return -1; }
 	}
 	
-
 	igz = alloc1int(ngeophones); // correcao devida a profundidade da fonde e do receptor numa levantamento marinho //
 	if(igz==NULL) { printf("Allocation of igz[%d] failed!!!\n",ngeophones); return -1;}
 
@@ -458,7 +495,10 @@ int main(int argc, char *argv[])
 	//-	fdforward_name = "fdforward.bin";
 
 	FILE *out_file;		// saida - dados migrados
-	char *out_name = "rtm_migrated_otimizado.su";
+	char *out_name = "rtm_migrated_5.1.su";
+
+	int iframe_cross;
+	int chunk=0;
 
     	ilanco=0;
 
@@ -467,7 +507,6 @@ int main(int argc, char *argv[])
 	nrec = ntrc/nshots; // 96
 
 	//TODO: testar depois sem fseek
-
 	// lendo os dados do marmousi //	
 	for(itrc=0;itrc<ntrc;++itrc)
      	{
@@ -478,16 +517,38 @@ int main(int argc, char *argv[])
 
     	for(ishot=0;ishot<nshots;++ishot)
  	{
-		printf("\n\n");
-		printf("|###########################################################################|\n");
-		printf("\tMIGRATING shot %d out of %d...\n",ishot+1,nshots);
-		printf("|###########################################################################|\n");
-
-		ircv = 0; // numero de tracos para common-shot //
 	
-		//#pragma omp for
+	#pragma omp parallel if (is_parallel) num_threads(n_threads) default(none) \
+		shared(beta,blackmann,diff,dx,dtrec,deriv2,dt,dz,factor,gama_x,gama_z,ixx0,ixx1,igx,igz,	\
+			ixmig1,ishot,ixmig0,iframe,ixb,ixe,isx,ilanco,izb,isz,finish,it0,imag,imag_filter,	\
+			imagtrace,ndtrtm,nshots,nzz,nxx,nrec,ns,nx,nz,nmigtrc,nt,nframes,shotidx,out_file,	\
+			out_name,prcv,psrc,p_1,p_2,p_aux,reclen,start,ttotal,shotgather,vel,window_x,x0,chunk,n_threads)\
+		private(delt,fonte,gama,ix,iz,itrc,invpgama,iconv,it,ircv,irec,iframe_cross,laplacian,mgama,source,t)
+	{
+		
+		#pragma omp single nowait
+		{
+
+			printf("\n\n");
+			printf("|###########################################################################|\n");
+			printf("\tMIGRATING shot %d out of %d...\n",ishot+1,nshots);
+			printf("|###########################################################################|\n");
+		
+			//ircv = 0; // numero de tracos para common-shot //
+
+			printf("\tINIT START\n");
+
+			// medindo tempo de retropropagacao
+			gettimeofday(&start,NULL);
+
+			//chunk = nrec/n_threads;
+		}
+
+		#pragma omp for schedule(static,10)//schedule(static,100)
 		for(itrc=shotidx[ishot];itrc<shotidx[ishot+1];++itrc)
 		{
+			ircv = (itrc-shotidx[ishot]) % nrec;
+			
 			//	armazena posicao do traco ma malha do modelo 		//
 			//	converte unidades usando a palavra scalco do header 	//
 			// 	=== ATENCAO === 					//
@@ -499,48 +560,86 @@ int main(int argc, char *argv[])
 			igz[ircv] = (int) floor( (-1.0)*((float)(shotgather[itrc].tr_header->gelev)) *\
 												(factor/dz) )+izb;
 
-			isx 	  = (int) floor( ( ((float)(shotgather[itrc].tr_header->sx))-((float)x0) )*\
+			#pragma omp critical
+			{
+				isx 	  = (int) floor( ( ((float)(shotgather[itrc].tr_header->sx))-((float)x0) )*\
 												(factor/dx) )+ixb;
 
-			isz       = (int) floor( ((float)(shotgather[itrc].tr_header->sdepth)) * (factor/dz) ) + izb;
+				isz       = (int) floor( ((float)(shotgather[itrc].tr_header->sdepth)) * (factor/dz) ) + izb;
 
-			//#pragma omp critical
-			//{
 				ilanco = max(ilanco, fabs(isx-igx[ircv]));
- 				++ircv;
-			//}
+ 				//++ircv;
+			}
   		}
 
-
-		// 	DEFINIR JANELA DE MIGRACAO 					//
-		if( LFRAC == 0 )
+		#pragma omp single nowait
 		{
-			ixmig0 = 1;
-			ixmig1 = nx;
-		}
-		else
-		{
-			ixmig0 = max( min(minval(igx,nrec),isx)-ilanco/LFRAC, ixb);
-			ixmig1 = min( max(maxval(igx,nrec),isx)+ilanco/LFRAC, ixe);
-		}
+			gettimeofday(&finish,NULL);
 
-		printf("\tJANELA DE MIGRACAO do tiro\n");
-		printf("\tJanela s/ borda - ixmig0: %d   ixmig1: %d\n",ixmig0,ixmig1);
+			timeval_subtract(&diff, &finish, &start);
 
-		nmigtrc = ixmig1 - ixmig0 + 1;
+			//-free2float(prcv);
+			//-fclose(fdbackward_file);
 
-		// 	DEFINIR JANELA DE PROPAGACAO 					//
-		ixx0 = ixmig0 - nborda - 1;
-		ixx1 = ixmig1 + nborda;
+			printf("\tINIT END\n");
+			printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
+
+			printf("|###########################################################################|\n");
+
+			// 	DEFINIR JANELA DE MIGRACAO 					//
+			if( LFRAC == 0 )
+			{
+				ixmig0 = 1;
+				ixmig1 = nx;
+			}
+			else
+			{
+				ixmig0 = max( min(minval(igx,nrec),isx)-ilanco/LFRAC, ixb);
+				ixmig1 = min( max(maxval(igx,nrec),isx)+ilanco/LFRAC, ixe);
+			}
+
+			printf("\tJANELA DE MIGRACAO do tiro\n");
+			printf("\tJanela s/ borda - ixmig0: %d   ixmig1: %d\n",ixmig0,ixmig1);
+
+			nmigtrc = ixmig1 - ixmig0 + 1;
+
+			// 	DEFINIR JANELA DE PROPAGACAO 					//
+			ixx0 = ixmig0 - nborda - 1;
+			ixx1 = ixmig1 + nborda;
 	
-		printf("\tJanela c/ borda - ixx0: %d   ixx1: %d\n",ixx0, ixx1);
-	
+			printf("\tJanela c/ borda - ixx0: %d   ixx1: %d\n",ixx0, ixx1);
+		}
 
-		//memset(gama_x,0,sizeof(float)*nxx);
-		//#pragma omp for
+		//#pragma omp single nowait
+		//{
+		//	printf("|###########################################################################|\n");
+		//	printf("\tTESTE START\n");
+		//	chunk = nxx/n_threads;
+		//	gettimeofday(&start,NULL);
+		//}
+
+		#pragma omp for //schedule(static,10)
 		for(ix=0;ix<nxx;++ix) gama_x[ix]=0;
 
-		//#pragma omp for
+		//#pragma omp single nowait
+		//{
+		//	printf("\tTESTE END\n");
+		//	gettimeofday(&finish,NULL);
+		//	timeval_subtract(&diff, &finish, &start);
+		
+		//	printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
+		//	printf("|###########################################################################|\n");
+		//}
+
+		//#pragma omp single nowait
+		//{
+		//	printf("|###########################################################################|\n");
+		//	printf("\tTESTE START\n");
+		//	chunk = (nborda+1)/n_threads;
+		//	gettimeofday(&start,NULL);
+		//}
+
+		#pragma omp for	//schedule(static,1)
 		for(ix=1;ix<nborda+1;++ix)
 		{
 			gama = beta * pow( ( ((float)ix)/((float)nborda) ) , 2 );
@@ -548,29 +647,66 @@ int main(int argc, char *argv[])
 			gama_x[ixmig1+ix-1] = gama;
 		}
 
+		//#pragma omp single nowait
+		//{
+		//	printf("\tTESTE END\n");
+		//	gettimeofday(&finish,NULL);
+		//	timeval_subtract(&diff, &finish, &start);
+		//
+		//	printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
+		//	printf("|###########################################################################|\n");
+		//}
+
+		//#pragma omp single nowait
+		//{
+		//	printf("|###########################################################################|\n");
+		//	printf("\tTESTE START\n");
+		//	chunk = nx/n_threads;
+		//	gettimeofday(&start,NULL);
+		//}
+
 		// JANELA BLACKMANN para suavizar borda da imagem //
-		//#pragma omp for nowait
+		#pragma omp for schedule(guided)
 		for(ix=0;ix<nx;++ix) window_x[ix] = 1.0; // window_x(:) = 1.0
 
-		//#pragma omp for
-		for(ix=0;ix<WDWLEN;++ix)
+		//#pragma omp single nowait
+		//{
+		//	printf("\tTESTE END\n");
+		//	gettimeofday(&finish,NULL);
+		//	timeval_subtract(&diff, &finish, &start);
+		//
+		//	printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
+		//	printf("|###########################################################################|\n");
+		//}
+
+		#pragma omp single nowait
 		{
-			window_x[ixmig0-1-nborda+WDWLEN-1-ix] = blackmann[ix];
-			window_x[ixmig1-nborda-WDWLEN+ix] = blackmann[ix];
+			for(ix=0;ix<WDWLEN;++ix)
+			{
+				window_x[ixmig0-1-nborda+WDWLEN-1-ix] = blackmann[ix];
+				window_x[ixmig1-nborda-WDWLEN+ix] = blackmann[ix];
+			}
 		}
 
 		//////////////////////////////////////////////////////////////////////////////////
 		//	       	RETROPROPAGACAO DO CAMPO DOS RECEPTORES				//
 		//////////////////////////////////////////////////////////////////////////////////
 
-		// 	condiÁao inicial: repouso 		//
+		// 	condi√ßao inicial: repouso 		//
 		// 	p(:,:,1) pressure field at time t-dt 	//
 		// 	p(:,:,2) pressure field at time t 	//
 
+		//#pragma omp single nowait
+		//{
+		//	printf("|###########################################################################|\n");
+		//	printf("\tTESTE START\n");
+		//	chunk = nxx/n_threads;
+		//	gettimeofday(&start,NULL);
+		//}
+
 		//memset(p_2, 0, sizeof(float)*nzz*nxx);
 		//memset(p_1, 0, sizeof(float)*nzz*nxx);
-		#pragma omp parallel for if(is_parallel) num_threads(n_threads) default(none) \
-			shared(nzz,nxx,p_2,p_1) private(iz,ix)
+		#pragma omp for schedule(static,100)
 		for(ix=0;ix<nxx;++ix)
 		{
 			for(iz=0;iz<nzz;++iz)
@@ -580,41 +716,54 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		reclen = nz*nmigtrc*sizeof(float);
+		//#pragma omp single nowait
+		//{
+		//	printf("\tTESTE END\n");
+		//	gettimeofday(&finish,NULL);
+		//	timeval_subtract(&diff, &finish, &start);
+		//
+		//	printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
+		//	printf("|###########################################################################|\n");
+		//}
 
-		printf("\tnmigtrc: %d   ",nmigtrc);
-		printf("reclen: %d\n",reclen);
+		#pragma omp single nowait
+		{
+			reclen = nz*nmigtrc*sizeof(float);
 
-		printf("|###########################################################################|\n");
+			//-if( (fdbackward_file = fopen(fdbackward_name, "wb")) == NULL ) 
+			//-{ printf("Error fdbackward file\n"); }//return -1; }
 
-		printf("\tRETROPROPAGATION START\n");
+			nframes = (nt%ndtrtm==0) ? nt/ndtrtm : (int) ceil( ((float)nt)/((float)ndtrtm) );
 
-		//-if( (fdbackward_file = fopen(fdbackward_name, "wb")) == NULL ) 
-		//-{ printf("Error fdbackward file\n"); }//return -1; }
+			prcv = alloc3float(nframes,nz,nmigtrc);
+			if(prcv==NULL) { printf("Allocation of prcv[%d,%d,%d] failed!!!\n",nframes,nz,nmigtrc); }//return -1; }
 
-		nframes = (nt%ndtrtm==0) ? nt/ndtrtm : (int) ceil( ((float)nt)/((float)ndtrtm) );
+			//-prcv = alloc2float(nz,nmigtrc);
+			//-if(prcv==NULL) { printf("Allocation of prcv[%d,%d] failed!!!\n",nz,nmigtrc); }//return -1; }
 
-		prcv = alloc3float(nframes,nz,nmigtrc);
-		if(prcv==NULL) { printf("Allocation of prcv[%d,%d,%d] failed!!!\n",nframes,nz,nmigtrc); }//return -1; }
-		//-prcv = alloc2float(nz,nmigtrc);
-		//-if(prcv==NULL) { printf("Allocation of prcv[%d,%d] failed!!!\n",nz,nmigtrc); }//return -1; }
+			iframe=0;
+		}
+		
+		#pragma omp single nowait
+		{
+			printf("\tnmigtrc: %d   ",nmigtrc);
+			printf("reclen: %d\n",reclen);
 
-		irec=0;
-		iframe=0;
+			printf("|###########################################################################|\n");
 
-		// medindo tempo de retropropagacao
-		gettimeofday(&start,NULL);
-	
+			printf("\tRETROPROPAGATION START\n");
+
+			// medindo tempo de retropropagacao
+			gettimeofday(&start,NULL);
+		}
+
 
 		for(it=0;it<nt;++it) // modelando a evolucao do campo de pressao //
 		{
 			// FD scheme: forward time //
-			t = ((float)it) * dt;//((float)(it-1)) * dt;
+				t = ((float)it) * dt;//((float)(it-1)) * dt;ndtrtm
 
-  			#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
-			shared(ixx0,ixx1,nzz,nxx,nrec,igx,igz,dx,ttotal,t,ns,dtrec,shotgather,gama_x,  \
-				gama_z,deriv2,p_1,p_2,vel,ishot)				       \
-			private(source,laplacian,ix,iz,itrc,gama,invpgama,mgama,iconv)
+			#pragma omp for schedule(guided)
 			for(ix=(ixx0+DRVLEN);ix<(ixx1-DRVLEN);++ix)
 			{
 				for(iz=(DRVLEN-1);iz<(nzz-DRVLEN);++iz)
@@ -635,136 +784,7 @@ int main(int argc, char *argv[])
 					gama = gama_x[ix] + gama_z[iz]; 
 					invpgama  = ( 1.0 / (1.0 + gama) );
 					mgama     = 1.0 - gama;
-
-					//	aumentar a ordem do operador de diferencas finitas: 		//
-					laplacian = 2.0 * deriv2[0] * p_2[ (iz) + (ix*nzz)];
-
-					for(iconv=1;iconv<DRVLEN;++iconv)
-					{
-						laplacian = laplacian + deriv2[iconv] 				* \
-			      				(							  \
-								p_2[ (iz-iconv) + (ix*nzz) ] 	+ \
-								p_2[ (iz+iconv) + (ix*nzz) ] 	+ \
-								p_2[ (iz) + ((ix-iconv)*nzz) ]	+ \
-								p_2[ (iz) + ((ix+iconv)*nzz) ] 	  \
-							);
-					}
-
-					p_1[ (iz) + (ix*nzz) ] = invpgama * ( 	 2.0 * \
-							    p_2[ (iz) + (ix*nzz) ] - mgama * \
-							    p_1[ (iz) + (ix*nzz) ] + 	       \
-						            vel[(iz) + (ix*nzz)] * ( laplacian - source ) );
-				}
-			}
-
-			// mega - new swap fields
-			p_aux  = p_2;
-			p_2    = p_1;
-			p_1    = p_aux;
-
-			if( ( it % ndtrtm) == 0)
-			{
-				if( (iframe%100==0) )
-					printf("\tit: %d - backward frames %d completed\n", it, iframe);
-
-				//-#pragma omp for private(ix)
-				for(ix=0;ix<nmigtrc;++ix)
-					memcpy(prcv + (iframe*nz*nmigtrc) + (ix*nz),p_2 + ((ixmig0-1+ix)*nzz) + (nborda), \
-													nz * sizeof(float) );
-
-				//-for(ix=0;ix<nmigtrc;++ix)
-				//-	memcpy(prcv+(ix*nz), p_2 + ((ixmig0-1+ix)*nzz)+(nborda), nz*sizeof(float));
-
-				//-fwrite(prcv, sizeof(float), nz * nmigtrc, fdbackward_file);
-
-				++iframe;
-			}
-
-		} // fim de modelagem
-
-		gettimeofday(&finish,NULL);
-
-		timeval_subtract(&diff, &finish, &start);
-		printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
-
-		//-free2float(prcv);	//-
-		//-fclose(fdbackward_file);//-
-
-		nframes = iframe;
-
-		printf("\tRETROPROPAGATION OF %d FRAMES END\n", nframes);
-
-		printf("|###########################################################################|\n");
-	
-		//////////////////////////////////////////////////////////////////////////////////
-		//		       	PROPAGACAO DO CAMPO DA FONTE				//
-		//////////////////////////////////////////////////////////////////////////////////
-
-		printf("\tSOURCE PROPAGATION START\n");
-
-		//-if( (fdbackward_file = fopen(fdbackward_name, "rb")) == NULL )
-		//-{printf("Error opening model file\n"); }//return -1;}
-
-		//-if(write_forward_file)
-		//-	if((fdforward_file=fopen(fdforward_name,"wb"))==NULL)
-		//-		{printf("Error opening forward source file\n");}//return -1;}
-		
-		// 	condiÁao inicial: repouso 		//
-		// 	p(:,:,1) pressure field at time t-dt 	//
-		// 	p(:,:,2) pressure field at time t 	//
-
-		//memset(p_2, 0, sizeof(float)*nzz*nxx);
-		//memset(p_1, 0, sizeof(float)*nzz*nxx);
-		#pragma omp parallel for if(is_parallel) num_threads(n_threads) default(none) \
-			shared(nzz,nxx,p_2,p_1) private(iz,ix)
-		for(ix=0;ix<nxx;++ix)
-		{
-			for(iz=0;iz<nzz;++iz)
-			{
-				p_2[ (iz) + (ix*nzz)] = 0.0;
-				p_1[ (iz) + (ix*nzz)] = 0.0;
-			}
-		}	
-
-		//-prcv = alloc2float(nz,nmigtrc);
-		//-if(prcv==NULL) { printf("Allocation of prcv[%d,%d] failed!!!\n",nz,nmigtrc); }//return -1;}
-
-		psrc = alloc3float(nframes,nz,nmigtrc);
-		if(psrc==NULL) { printf("Allocation of psrc[%d,%d,%d] failed!!!\n",nframes,nz,nmigtrc); }//return -1;}
-		//-psrc = alloc2float(nz,nmigtrc);
-		//-if(psrc==NULL) { printf("Allocation of psrc[%d,%d] failed!!!\n",nz,nmigtrc); }//return -1;}		
-
-		irec   = 0;
-		iframe = 0;
-
-		gettimeofday(&start,NULL);
-
-		// modelando a evolucao do campo de pressao //
-		for(it=0;it<nt;it++)
-		{
-			delt  = pow( beta * ((float)(1+it-it0)), 2.0);
-
-			// Pulso fonte Ricker frequancia pico freq //
-		        fonte = (dx*dx) * exp( -delt ) * ( 1.0 - (2.0 * delt) );   
-
-  			#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
-			shared(ixx0,ixx1,nzz,nxx,nrec,isx,isz,dx,ttotal,t,ns,dtrec,shotgather,gama_x,  \
-				gama_z,deriv2,p_1,p_2,vel,fonte)				       \
-			private(source,laplacian,ix,iz,itrc,gama,invpgama,mgama,iconv)
-			for(ix=(ixx0+DRVLEN);ix<(ixx1-DRVLEN);ix++)
-			{
-				for(iz=(DRVLEN-1);iz<(nzz-DRVLEN);iz++)
-				{
-					source = 0.0;
-
-					if ( (ix == (isx-1)) && (iz == (isz-1)) )
-	   				{
-						source = fonte;
-					}
-
-					gama = gama_x[ix] + gama_z[iz]; 
-					invpgama  = 1.0 / ( 1.0 + gama);
-					mgama     = 1.0 - gama;
+/*
 
 					//	aumentar a ordem do operador de diferencas finitas: 		//
 					laplacian = 2.0 * deriv2[0] * p_2[ (iz) + (ix*nzz)];
@@ -779,6 +799,21 @@ int main(int argc, char *argv[])
 								p_2[ (iz) + ((ix+iconv)*nzz) ] 	  \
 							);
 					}
+*/	
+
+					//	aumentar a ordem do operador de diferencas finitas: 		//
+					laplacian = 2.0 * deriv2[0] * p_2[ (iz) + (ix*nzz)];
+
+					for(iconv=DRVLEN-1;iconv>0;--iconv)
+					{
+						laplacian = laplacian + deriv2[iconv] 				* \
+			      				(					  \ 
+								p_2[ (iz-iconv) + (ix*nzz) ] 	+ \
+								p_2[ (iz+iconv) + (ix*nzz) ] 	+ \
+								p_2[ (iz) + ((ix-iconv)*nzz) ]	+ \
+								p_2[ (iz) + ((ix+iconv)*nzz) ]    \						
+							);
+					}
 
 					p_1[ (iz) + (ix*nzz) ] = invpgama * ( 	 2.0 * \
 							    p_2[ (iz) + (ix*nzz) ] - mgama * \
@@ -786,97 +821,220 @@ int main(int argc, char *argv[])
 						            vel[(iz) + (ix*nzz)] * ( laplacian - source ) );
 				}
 			}
-		
-			// mega - new swap fields
-			p_aux      = p_2;
-			p_2    = p_1;
-			p_1 = p_aux;
 
-			if( ( it % ndtrtm) == 0)
+			#pragma omp single
 			{
-				if( (iframe%100==0) ) 
-					printf("\tit: %d - forward frames %d completed\n", it, iframe);
+				// mega - new swap fields
+				p_aux  = p_2;
+				p_2    = p_1;
+				p_1    = p_aux;
+			}
 
-				//%irec = nframes-iframe-1;
+			#pragma omp single nowait
+			{
+				if( ( it % ndtrtm) == 0)
+				{
+					if( (iframe%100==0) )
+						printf("\tit: %d - backward frames %d completed\n", it, iframe);
 
-				//%fseek(fdbackward_file, irec * reclen , SEEK_SET);
-				//%fread(prcv, sizeof(float), nz * nmigtrc, fdbackward_file);
+		  			//#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
+						shared(nmigtrc,prcv,iframe,nz,p_2,ixmig0,nzz) private(ix)					
+					for(ix=0;ix<nmigtrc;++ix)
+						memcpy(prcv + (iframe*nz*nmigtrc) + (ix*nz),
+							p_2 + ((ixmig0-1+ix)*nzz) + (nborda), nz * sizeof(float) );
 
-				//#pragma omp for private(ix)
-				for(ix=0;ix<nmigtrc;++ix)
-					memcpy(psrc + (iframe*nz*nmigtrc) + (ix*nz), p_2 + ((ixmig0-1+ix)*nzz) + (nborda), \
-											nz * sizeof(float) );
+					//-for(ix=0;ix<nmigtrc;++ix)
+					//-	memcpy(prcv+(ix*nz), p_2 + ((ixmig0-1+ix)*nzz)+(nborda), nz*sizeof(float));
 
-				//-if(write_forward_file)
-				//-	fwrite(psrc, sizeof(float), nz * nmigtrc, fdforward_file);
+					//-fwrite(prcv, sizeof(float), nz * nmigtrc, fdbackward_file);
+
+					++iframe;
+				}
+			}
+		} // fim de modelagem
+
+		#pragma omp single nowait
+		{
+			nframes = iframe;
+
+			gettimeofday(&finish,NULL);
+
+			timeval_subtract(&diff, &finish, &start);
+
+			//-free2float(prcv);
+			//-fclose(fdbackward_file);
+
+			printf("\tRETROPROPAGATION OF %d FRAMES END\n", nframes);
+			printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
+
+			printf("|###########################################################################|\n");
+	
+			//////////////////////////////////////////////////////////////////////////////////
+			//		       	PROPAGACAO DO CAMPO DA FONTE				//
+			//////////////////////////////////////////////////////////////////////////////////
+
+			printf("\tSOURCE PROPAGATION START\n");
+
+			//-if( (fdbackward_file = fopen(fdbackward_name, "rb")) == NULL )
+			//-{printf("Error opening model file\n"); }//return -1;}
+
+			//-if(write_forward_file)
+			//-	if((fdforward_file=fopen(fdforward_name,"wb"))==NULL)
+			//-		{printf("Error opening forward source file\n");}//return -1;}
+		}
+		
+		// 	condi√ßao inicial: repouso 		//
+		// 	p(:,:,1) pressure field at time t-dt 	//
+		// 	p(:,:,2) pressure field at time t 	//
+
+		//memset(p_2, 0, sizeof(float)*nzz*nxx);
+		//memset(p_1, 0, sizeof(float)*nzz*nxx);
+		#pragma omp for schedule(static,100)
+		for(ix=0;ix<nxx;++ix)
+		{
+			for(iz=0;iz<nzz;++iz)
+			{
+				p_2[ (iz) + (ix*nzz)] = 0.0;
+				p_1[ (iz) + (ix*nzz)] = 0.0;
+			}
+		}	
+
+		#pragma omp single nowait
+		{
+			//-prcv = alloc2float(nz,nmigtrc);
+			//-if(prcv==NULL) { printf("Allocation of prcv[%d,%d] failed!!!\n",nz,nmigtrc); }//return -1;}
+
+			psrc = alloc3float(nframes,nz,nmigtrc);
+			if(psrc==NULL) { printf("Allocation of psrc[%d,%d,%d] failed!!!\n",nframes,nz,nmigtrc); }//return -1;}
+			//-psrc = alloc2float(nz,nmigtrc);
+			//-if(psrc==NULL) { printf("Allocation of psrc[%d,%d] failed!!!\n",nz,nmigtrc); }//return -1;}		
+
+			iframe = 0;
+
+			gettimeofday(&start,NULL);
+			chunk = (ixx0-ixx1)/n_threads;;
+		}
+
+		// modelando a evolucao do campo de pressao //
+		for(it=0;it<nt;it++)
+		{
+			delt  = pow( beta * ((float)(1+it-it0)), 2.0);
+
+			// Pulso fonte Ricker frequancia pico freq //
+			fonte = (dx*dx) * exp( -delt ) * ( 1.0 - (2.0 * delt) );   
+		
+			#pragma omp for schedule(static,1)
+			for(ix=(ixx0+DRVLEN);ix<(ixx1-DRVLEN);ix++)
+			{
+				for(iz=(DRVLEN-1);iz<(nzz-DRVLEN);iz++)
+				{
+					source = 0.0;
+
+					if ( (ix == (isx-1)) && (iz == (isz-1)) )
+	   				{
+						source = fonte;
+					}
+
+					gama = gama_x[ix] + gama_z[iz]; 
+					invpgama  = 1.0 / ( 1.0 + gama);
+					mgama     = 1.0 - gama;
+/*
+					//	aumentar a ordem do operador de diferencas finitas: 		//
+					laplacian = 2.0 * deriv2[0] * p_2[ (iz) + (ix*nzz)];
+
+					for(iconv=1;iconv<DRVLEN;++iconv)
+					{
+						laplacian = laplacian + deriv2[iconv] 		* \
+			      				(					  \
+								p_2[ (iz-iconv) + (ix*nzz) ] 	+ \
+								p_2[ (iz+iconv) + (ix*nzz) ] 	+ \
+								p_2[ (iz) + ((ix-iconv)*nzz) ]	+ \
+								p_2[ (iz) + ((ix+iconv)*nzz) ] 	  \
+							);
+					}
+*/
+
+					laplacian = 2.0 * deriv2[0] * p_2[ (iz) + (ix*nzz)];
+
+					for(iconv=DRVLEN-1;iconv>0;--iconv)
+					{
+						laplacian = laplacian + deriv2[iconv] 				* \
+			      				(					  \ 
+								p_2[ (iz-iconv) + (ix*nzz) ] 	+ \
+								p_2[ (iz+iconv) + (ix*nzz) ] 	+ \
+								p_2[ (iz) + ((ix-iconv)*nzz) ]	+ \
+								p_2[ (iz) + ((ix+iconv)*nzz) ]    \						
+							);
+					}
+		
+					p_1[ (iz) + (ix*nzz) ] = invpgama * ( 	 2.0 * \
+							    p_2[ (iz) + (ix*nzz) ] - mgama * \
+							    p_1[ (iz) + (ix*nzz) ] + 	       \
+						            vel[(iz) + (ix*nzz)] * ( laplacian - source ) );
+				}
+			}
 			
-			/*%
-			%	//////////////////////////////////////////////////////////////////
-			%	//	 	CONDICAO DE IMAGEM CROSS-CORRELACAO 		//
-			%	//////////////////////////////////////////////////////////////////
-			%
-			%	itrc=0;
+			#pragma omp single
+			{
+				// mega - new swap fields
+				p_aux  = p_2;
+				p_2    = p_1;
+				p_1    = p_aux;
+			}
 
-			%	//--#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
-			%	//-		private(ix,iz,itrc) \
-			%	//-		shared(window_x,psrc,prcv,ixmig0,ixmig1,nz,nmigtrc,imag)
-			%	//-for(ix=(ixmig0-1-nborda);ix<(ixmig1-nborda);++ix)
-			%	//-{
-			%	//-//	itrc = ix % ( (ixmig1-nborda) - (ixmig0-1-nborda) ); //TODO: rever isto
-			%	//-
-			%	//-	for(iz=0;iz<nz;++iz)
-	  		%	//-		imag[(iz) + (ix*nz)]  = imag[(iz) + (ix*nz)] + ( window_x[ix] * \
-			%	//-				psrc[ (iframe*nz*nmigtrc) + (iz) + (itrc*nz)] * \
-			%	//-				prcv[ (irec*nz*nmigtrc)   + (iz) + (itrc*nz)] );
-			%	//-	++itrc;
-			%	//-}
-%
-			%	//#pragma omp for
-			%	for(ix=(ixmig0-1-nborda);ix<(ixmig1-nborda);++ix)
-			%	{
-			%		itrc = ix % ( (ixmig1-nborda) - (ixmig0-1-nborda) ); //TODO: rever isto
-			%		//printf("tn:%d|itrc: %d\n",omp_get_thread_num(),itrc);
-%
-			%		for(iz=0;iz<nz;++iz)
-			%			imag[(iz) + (ix*nz)]  = imag[(iz) + (ix*nz)] + ( window_x[ix] * \
-			%					psrc[ (iz) + (itrc*nz)] * prcv[ (iz) + (itrc*nz)] );
-			%		
-			%		//++itrc;
-			%	}
-			%*/
-				++iframe;
+			#pragma omp single nowait
+			{
+				if( ( it % ndtrtm) == 0)
+				{
+					if( (iframe%100==0) ) 
+						printf("\tit: %d - forward frames %d completed\n", it, iframe);
+
+					//#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
+						shared(nmigtrc,psrc,iframe,nz,p_2,ixmig0,nzz) private(ix)
+					for(ix=0;ix<nmigtrc;++ix)
+						memcpy(psrc + (iframe*nz*nmigtrc) + (ix*nz), p_2 + ((ixmig0-1+ix)*nzz) + (nborda), \
+												nz * sizeof(float) );
+
+					//-if(write_forward_file)
+					//-	fwrite(psrc, sizeof(float), nz * nmigtrc, fdforward_file);
+			
+					++iframe;
+				}
 			}
 		} // fim de modelagem //
 
-		nframes = iframe;
-		//-fclose(fdforward_file);
-
-		printf("\tSOURCE PROPAGATION OF %d FRAMES END\n",nframes);
-
-		gettimeofday(&finish,NULL);
-
-		timeval_subtract(&diff, &finish, &start);
-		printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
-
-		printf("|###########################################################################|\n");
-		printf("\tCROSS CORRELATION START\n");
-
-		//-if(write_forward_file)
-		//-	if((fdforward_file=fopen(fdforward_name,"rb"))==NULL)
-		//-		{printf("Error opening forward source file\n");}//return -1;}
-
-		irec=0;
-		itrc=0;
-
-		gettimeofday(&start,NULL);
-
-		for(iframe=0;iframe<nframes;++iframe)
+		#pragma omp single nowait
 		{
-		
-			//-fseek(fdforward_file, iframe * reclen , SEEK_SET);
+			nframes = iframe;
+			//-fclose(fdforward_file);
+
+			printf("\tSOURCE PROPAGATION OF %d FRAMES END\n",nframes);
+
+			gettimeofday(&finish,NULL);
+
+			timeval_subtract(&diff, &finish, &start);
+			printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
+
+			printf("|###########################################################################|\n");
+			printf("\tCROSS CORRELATION START\n");
+
+			//-if(write_forward_file)
+			//-	if((fdforward_file=fopen(fdforward_name,"rb"))==NULL)
+			//-		{printf("Error opening forward source file\n");}//return -1;}
+
+			gettimeofday(&start,NULL);
+
+			//chunk=nmigtrc/n_threads;
+		}
+
+		for(iframe_cross=0;iframe_cross<nframes;++iframe_cross)
+		{
+
+			//-fseek(fdforward_file, iframe_cross * reclen , SEEK_SET);
 			//-fread(psrc, sizeof(float), nz * nmigtrc, fdforward_file);
 
-			irec = nframes-iframe-1;
+			irec = nframes-iframe_cross-1;
+
 			//-fseek(fdbackward_file, irec * reclen , SEEK_SET);
 			//-fread(prcv, sizeof(float), nz * nmigtrc, fdbackward_file);
 
@@ -884,23 +1042,21 @@ int main(int argc, char *argv[])
 			//			NOVA CROSS-CORRELACAO 			//
 			//////////////////////////////////////////////////////////////////
 
-			itrc = 0;
-
-  			#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none)	\
-				shared(ixx0,nz,ixmig0,ixmig1,iframe,imag,psrc,prcv,nmigtrc,irec,window_x)\
-				private(ix,iz,itrc)
+			#pragma omp for schedule(static,1)
 			for(ix=(ixmig0-1-nborda);ix<(ixmig1-nborda);++ix)
 			{
 				itrc = (ix-ixx0) % (nmigtrc);
 
 				for(iz=0;iz<nz;++iz)
-					imag[(iz) + (ix*nz)]  = imag[(iz) + (ix*nz)] + ( window_x[ix] * \
-							psrc[ (iframe*nz*nmigtrc) + (iz) + (itrc*nz)] * \
-							prcv[ (irec*nz*nmigtrc)   + (iz) + (itrc*nz)] );
+					imag[(iz) + (ix*nz)]  = imag[(iz) + (ix*nz)]    + ( window_x[ix] * \
+							psrc[ (iframe_cross*nz*nmigtrc) + (iz) + (itrc*nz)] * \
+							prcv[ (irec*nz*nmigtrc)         + (iz) + (itrc*nz)] );
 
 				//++itrc;
 			}
 
+
+			//-itrc = 0;
 			//-#pragma omp for
 			//-for(ix=(ixmig0-1-nborda);ix<(ixmig1-nborda);++ix)
 			//-{
@@ -916,33 +1072,37 @@ int main(int argc, char *argv[])
 			//-
 			//-	//++itrc;
 			//-}
-
 		}
+		
+		#pragma omp single nowait
+		{
+			printf("\tCROSS CORRELATION END\n");
+			gettimeofday(&finish,NULL);
 
-		printf("\tCROSS CORRELATION END\n");
-		gettimeofday(&finish,NULL);
-
-		timeval_subtract(&diff, &finish, &start);
-		printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
+			timeval_subtract(&diff, &finish, &start);
+			printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
 	
-		//-free2float(prcv);
-		//-free2float(psrc);
+			//-free2float(prcv);
+			//-free2float(psrc);
 
-		free3float(prcv);
-		free3float(psrc);
+			free3float(prcv);
+			free3float(psrc);
 
-		//-fclose(fdbackward_file);
+			//-fclose(fdbackward_file);
 
-		//-if(write_forward_file)
-		//-	fclose(fdforward_file);
+			//-if(write_forward_file)
+			//-	fclose(fdforward_file);
+		
 
 		//////////////////////////////////////////////////////////////////////////////////
         	//				FILTRO LAPLACIANO				//
 		//////////////////////////////////////////////////////////////////////////////////
+			printf("|###########################################################################|\n");
+			printf("\tLAPLACIAN FILTER START\n");
+			gettimeofday(&start,NULL);		
+		}
 
-		#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
-		shared(nz,nx,deriv2,vel,imag,imag_filter)				       \
-		private(laplacian,ix,iz,iconv)
+		#pragma omp for	schedule(guided)
 		for(ix=(DRVLEN-1);ix<(nx-DRVLEN);ix++)
 		{
 			for(iz=(DRVLEN-1);iz<(nz-DRVLEN);iz++)
@@ -967,29 +1127,39 @@ int main(int argc, char *argv[])
 		//////////////////////////////////////////////////////////////////////////////////
         	//				ESCRITA FINAL DOS DADOS				//
 		//////////////////////////////////////////////////////////////////////////////////
-
-		if(ishot==nshots-1)
+		#pragma omp single nowait
 		{
+			printf("\tLAPLACIAN FILTER END\n");
+			gettimeofday(&finish,NULL);
 
-			if( (out_file = fopen(out_name, "wb")) == NULL ) { printf("Error opening out file\n"); }//return -1; }
+			timeval_subtract(&diff, &finish, &start);
+			printf("%ld.%06ld\n", diff.tv_sec, diff.tv_usec);
 
-			//#pragma omp for 
-			for(ix=0;ix<nx;ix++)
+			if(ishot==nshots-1)
 			{
-				imagtrace.tr_header->tracl = ix + 1;
 
-				//memcpy(imagtrace.tr_data, imag_filter + (ix*nz), nz * sizeof(float) );
-				//put_tr(ix, &imagtrace, nz, out_file);
+				if( (out_file = fopen(out_name, "wb")) == NULL ) { printf("Error opening out file\n"); }//return -1; }
 
-				fwrite(imagtrace.tr_header, HDRBYTES, 1, out_file);
-				fwrite(imag_filter + (ix*nz), sizeof(float), nz, out_file);
+				//#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none)	\
+					shared(nz,nx,out_file,imag_filter) private(ix) firstprivate(imagtrace)
+				for(ix=0;ix<nx;ix++)
+				{
+					imagtrace.tr_header->tracl = ix + 1;
+
+					//memcpy(imagtrace.tr_data, imag_filter + (ix*nz), nz * sizeof(float) );
+					//put_tr(ix, &imagtrace, nz, out_file);
+				
+					fwrite(imagtrace.tr_header, HDRBYTES, 1, out_file);
+					fwrite(imag_filter + (ix*nz), sizeof(float), nz, out_file);
+				}
+
+				fclose(out_file);
 			}
 
-			fclose(out_file);
+			printf("|###########################################################################|\n");
 		}
 
-		printf("|###########################################################################|\n");
-
+		} // end of parallel section
 	} // END LOOP OF SHOTS
 
 	gettimeofday(&finish_princ,NULL);

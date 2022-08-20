@@ -22,13 +22,13 @@ edit_header:
 	$(CXX) -Wall -o edit_header edit_header.c
 
 copy_to_dca:
-	scp -P2222 rtm_migrated_otimizado.su username@FQDN:/home/username/public_html/rtm/
+	scp -P2222 rtm_migrated_5.1.su username@FQDN:/home/username/public_html/rtm/
 #scp -P2222 fdbackward.bin username@FQDN:/home/username/public_html/rtm/
 #scp -P2222 fdforward.bin username@FQDN:/home/username/public_html/rtm/
 #scp -P2222 ../fortran/out.su  username@FQDN:/home/username/public_html/rtm/
 
 copy_from_dca:
-	wget SERVER/~username/rtm/rtm_migrated_otimizado.su
+	wget SERVER/~username/rtm/rtm_migrated_5.1.su
 	wget SERVER/~username/rtm/fdbackward.bin
 	wget SERVER/~username/rtm/fdforward.bin
 
@@ -39,7 +39,7 @@ clean:
 	rm -f fdbackward.bin
 	rm -f fdforward.bin
 	rm -f cshot.su
-	rm -f rtm_migrated.su
+	rm -f rtm_migrated_5.1.su
 
 backup:
 	cp alloc.c  ../backup/

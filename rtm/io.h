@@ -79,7 +79,7 @@
 //			SEISMIC FUNCTIONS			//
 //////////////////////////////////////////////////////////////////
 
-double interp_trace(float, int, float, float, float *);
+float interp_trace(float, int, float, float, float *);
 
 void get_vel_model(float*, FILE*, size_t, size_t, size_t);
 
