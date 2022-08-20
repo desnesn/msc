@@ -30,6 +30,9 @@ float *alloc1float(size_t);
 // 	allocate a 2-d array of float		//
 float *alloc2float(size_t, size_t);
 
+// 	allocate a 3-d array of float		//
+float *alloc3float(size_t, size_t, size_t);
+
 //////////////////////////////////////////////////
 //		ALLOC - SU_TRACE		//
 //////////////////////////////////////////////////
@@ -56,6 +59,9 @@ void free1float(float *);
 
 // 	free a 2-d array of floats 		//
 void free2float(float *);
+
+// 	free a 3-d array of floats 		//
+void free3float(float *);
 
 //////////////////////////////////////////////////
 //		DEALLOC - SU_TRACE		//

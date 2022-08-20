@@ -32,6 +32,12 @@ float* alloc2float(size_t width, size_t length)
     	return  (float*) malloc(sizeof(float)*width*length);
 }
 
+// 	allocate a 2-d array of float		//
+float* alloc3float(size_t width, size_t length, size_t dim)
+{
+    	return  (float*) malloc(sizeof(float)*width*length*dim);
+}
+
 //////////////////////////////////////////////////
 //		ALLOC - SU_TRACE		//
 //////////////////////////////////////////////////
@@ -70,6 +76,12 @@ void free1float(float *vet)
 
 // 	free a 2-d array of floats 		//
 void free2float(float *vet)
+{
+	free(vet);
+}
+
+// 	free a 3-d array of floats 		//
+void free3float(float *vet)
 {
 	free(vet);
 }

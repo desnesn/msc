@@ -210,3 +210,23 @@ int main()
 
 */
 
+
+/*
+int get_exec_time(struct timeval start,struct timeval finish)
+{
+	int msec;
+	msec = finish.tv_sec * 1000 + finish.tv_usec / 1000;
+	msec-= start.tv_sec * 1000 + start.tv_usec / 1000;
+	return msec;
+}
+
+int get_exec_time_sec(struct timeval start,struct timeval finish)
+{
+	int msec;
+	msec = finish.tv_sec * 1000 + finish.tv_usec / 1000;
+	msec-= start.tv_sec * 1000 + start.tv_usec / 1000;
+	return msec;
+}
+*/
+
+
