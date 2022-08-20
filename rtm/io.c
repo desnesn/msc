@@ -5,7 +5,7 @@
 //////////////////////////////////////////////////////////////////
 
 //nt= number of samples ! t = target sample; ! t0= amostra inicial ! dt= intervalo de amostragem original //
-float interp_trace(float t, int nt, float t0, float dt, float *trace)
+double interp_trace(float t, int nt, float t0, float dt, float *trace)
 {
 	float interp_trace = 0.0;
 	//float tol = 1.0e-3;
@@ -32,7 +32,7 @@ float interp_trace(float t, int nt, float t0, float dt, float *trace)
    		}
 	}
 
-	return interp_trace;
+	return ((double)interp_trace);
 }
 
 void get_vel_model(float* vel, FILE *vel_file, size_t nz, size_t nx, size_t nborda)
@@ -136,6 +136,19 @@ int minval(int *v, int size)
 	return min;
 }
 
+int minval_igx(trace_pos *v, int size)
+{
+	int i, min;
+
+	min=v[0].igx;
+
+	for(i=1;i<size;i++)
+		if (v[i].igx<min) min=v[i].igx;
+
+	return min;
+}
+
+
 int maxval(int *v, int size)
 {
 	int i, max;
@@ -143,6 +156,18 @@ int maxval(int *v, int size)
 	max=v[0];
 	for(i=1;i<size;i++)
 		if (v[i]>max) max=v[i];
+
+	return max;
+}
+
+int maxval_igx(trace_pos *v, int size)
+{
+	int i, max;
+
+	max=v[0].igx;
+
+	for(i=1;i<size;i++)
+		if (v[i].igx>max) max=v[i].igx;
 
 	return max;
 }

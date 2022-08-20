@@ -43,8 +43,29 @@ struct timeval start_princ, finish_princ, diff_princ;
 
 int main(int argc, char *argv[])
 {
+	//////////////////////////////////////////////////////////////////////////////////
+	//				PRE-INIT					//
+	//////////////////////////////////////////////////////////////////////////////////    
+
+	if (argc!=3) { printf("Erro nas opcoes de entrada\n"); return -1; }
+
+	int n_threads = atoi(argv[2]);
+
+	//	g - modelo grande		//
+	//	p - modelo pequeno		//
+	char modelo = (argv[1])[1];
+
+	//	0 - programa nao paralelo	//
+	//	1 - programa paralelo		//
+	int UNUSED is_parallel;
+	is_parallel = (n_threads==1) ? 0 : 1;
+
+	//////////////////////////////////////////////////////////////////////////////////
+	//				RTM PRE-INIT					//
+	//////////////////////////////////////////////////////////////////////////////////    
+	
 	printf("|---------------------------------------------------------------------------|\n");
-	printf("|                     Reverse Time Migration - RTM 5.1                      |\n");
+	printf("|                     Reverse Time Migration - RTM 6.0                      |\n");
 	printf("|---------------------------------------------------------------------------|\n");
 
 	//	largura da borda da ordem de 3xlambda/2, lambda=Vmax/freq		//
@@ -65,16 +86,22 @@ int main(int argc, char *argv[])
 
 	float UNUSED *vel;
 
-	float UNUSED *p_1;
-	float UNUSED *p_2;
+	//&float UNUSED *p_1;
+	//&float UNUSED *p_2;
 	float UNUSED *p_aux;
+	float UNUSED p_swap;
+
+	wave_fields *fields;
 
 	float UNUSED dswap;
 
-	float UNUSED *psrc;
-	float UNUSED *prcv;
-	float UNUSED *imag;
-	float UNUSED *imag_filter;
+	//&float UNUSED *psrc;
+	//&float UNUSED *prcv;
+	p_frames *frames;
+
+	//&float UNUSED *imag;
+	//&float UNUSED *imag_filter;
+	mig_section *sections;
 
 	//	Operador de segunda derivada de oitava ordem				//
 	//	serve para resolver numericamente a equacao da onda (EDP) 		//
@@ -107,88 +134,15 @@ int main(int argc, char *argv[])
 	int UNUSED ndtrec, ndtrtm;
 	int UNUSED ix, iz, it0;
 	int UNUSED isx, isz;
-	int UNUSED *igx , *igz;
 	int UNUSED *shotidx;
 	int UNUSED iconv, ixb, ixe, izb, ize, nxx, nzz;
 	int UNUSED iframe, nframes, irec, ircv, itrc, ns;
 	int UNUSED ntrc, ngeophones, ishot, nshots;
 	float UNUSED factor;
 
-	int UNUSED is_parallel;
+	//&int UNUSED *igx , *igz;
+	trace_pos *pos;
 
-	//////////////////////////////////////////////////////////////////////////////////
-	//				PRE-INIT					//
-	//////////////////////////////////////////////////////////////////////////////////    
-
-	if(argc!=4)
-	{
-		printf("MIGRAÇÃO REVERSA NO TEMPO PARALELA EM C/OPENMP\n");
-		printf("INSTRUÇÕES:\t1) Renomeie o nome do arquivo do modelo de velocidades para: meu_vel_nome[nz,nx,z0,x0,dz,dx];\n");
-		printf("           \t2) Chame o programa desta forma: ./main meu_vel_nome[INT,INT,FLOAT,FLOAT,FLOAT,FLOAT] freq_fonte numero_de_threads\n");
-		return 0;
-	}
-	else
-	{
-		freq = atof(argv[2]);
-
-		n_threads = atoi(argv[3]);
-		is_parallel = (n_threads==1) ? 0 : 1;
-
-		//printf("freq: %f\n",freq);
-		//printf("n_threads: %d\n",n_threads);
-
-		char *pch_s,*pch_e;
-		pch_s=strchr(argv[1],'[');
-		pch_e=strchr(argv[1],']');
-		
-		char *vals = (char*) malloc(sizeof(char)*( (pch_e-argv[1]) - (pch_s-argv[1]) ));
-		memcpy(vals,argv[1]+(pch_s-argv[1]+1),sizeof(char)*( (pch_e-argv[1]) - (pch_s-argv[1]) - 1 ));
-
-		//printf("%s\n",vals);
-
-		char *ptr_tok = (char*) malloc(sizeof(char)*10);
-		ptr_tok = strtok(vals,",");
-		int i=0;
-
-		do
-		{
-			switch(i)
-			{
-				case 0:
-					nz = atoi(ptr_tok);
-					//printf("%d\n",nz);
-					break;
-				case 1:
-					nx = atoi(ptr_tok);
-					//printf("%d\n",nx);
-					break;
-				case 2:
-			    		z0  = atof(ptr_tok);
-					//printf("%f\n",z0);
-					break;
-				case 3:
-			    		x0  = atof(ptr_tok);
-					//printf("%f\n",x0);
-					break;
-				case 4:
-			    		dz  = atof(ptr_tok);
-					//printf("%f\n",dz);
-					break;
-				case 5:
-			    		dx  = atof(ptr_tok);
-					//printf("%f\n",dx);
-					break;
-			}
-			ptr_tok = strtok(NULL,",");
-			i++;
-		}while(ptr_tok!=NULL);		
-	}
-
-	//////////////////////////////////////////////////////////////////////////////////
-	//				RTM PRE-INIT					//
-	//////////////////////////////////////////////////////////////////////////////////    
-
-	/*
 	if(modelo=='p')
 	{
 		//	Dados do modelo de velocidade-PEQUENO					//TODO: argc e argv
@@ -215,7 +169,6 @@ int main(int argc, char *argv[])
 
 	// 	Frequencia da fonte 							//
 	freq = 12.0;
-	*/
 
 	// 	PML nos 4 lados do grid - Atenuar a energia das bordas com uma 		//
 	//	exponencial quadratica da velocidade  - Bordas para x e z no modelo	//
@@ -242,11 +195,12 @@ int main(int argc, char *argv[])
 
 	//	Alocacao de vetores e matrizes 						//
 
-	p_2 = alloc2float(nzz,nxx);    // Campos de pressão: p[851][2401][2]
-	if(p_2==NULL) { printf("Allocation of p_2[%d,%d] failed!!!\n",nzz,nxx); return -1;}
+	fields = (wave_fields*) malloc(sizeof(wave_fields)*nzz*nxx);
+	//&p_2 = alloc2float(nzz,nxx);    // Campos de pressão: p[851][2401][2]
+	//&if(p_2==NULL) { printf("Allocation of p_2[%d,%d] failed!!!\n",nzz,nxx); return -1;}
 
-	p_1 = alloc2float(nzz,nxx);    // Campos de pressão: p[851][2401][2]
-	if(p_1==NULL) { printf("Allocation of p_1[%d,%d] failed!!!\n",nzz,nxx); return -1;}
+	//&p_1 = alloc2float(nzz,nxx);    // Campos de pressão: p[851][2401][2]
+	//&if(p_1==NULL) { printf("Allocation of p_1[%d,%d] failed!!!\n",nzz,nxx); return -1;}
 
 	vel = alloc2float(nzz,nxx);      // Matriz de velocidade: vel[851,2401]
 	if(vel==NULL) { printf("Allocation of vel[%d,%d] failed!!!\n",nzz,nxx); return -1;}
@@ -260,11 +214,15 @@ int main(int argc, char *argv[])
 	window_x = alloc1float(nx);
 	if(window_x==NULL) { printf("Allocation of window_x[%d] failed!!!\n",nx); return -1;}
 
+	/*&
 	imag = alloc2float(nz,nx);
 	if(imag==NULL) { printf("Allocation of imag[%d,%d] failed!!!\n",nz,nx); return -1;}
 
 	imag_filter = alloc2float(nz,nx);
 	if(imag_filter==NULL) { printf("Allocation of imag_filter[%d,%d] failed!!!\n",nz,nx); return -1;}
+	&*/
+
+	sections = (mig_section*) malloc(sizeof(mig_section)*nz*nx);	
 
 	//////////////////////////////////////////////////////////////////////////////////    
 	//				RTM INIT					//
@@ -411,11 +369,15 @@ int main(int argc, char *argv[])
 		{ printf("Allocation of shotgather[%d].tr_data[%d] failed!!!\n",itrc,ns); return -1; }
 	}
 	
+	/*&
 	igz = alloc1int(ngeophones); // correcao devida a profundidade da fonde e do receptor numa levantamento marinho //
 	if(igz==NULL) { printf("Allocation of igz[%d] failed!!!\n",ngeophones); return -1;}
 
 	igx = alloc1int(ngeophones); // correcao devida a profundidade da fonde e do receptor numa levantamento marinho //
 	if(igx==NULL) { printf("Allocation of igx[%d] failed!!!\n",ngeophones); return -1;}
+	&*/
+
+	pos = (trace_pos*) malloc(sizeof(trace_pos)*ngeophones);
 
 	//////////////////////////////////////////////////////////////////////////////////
         //				SETTING PARAMETERS 				//
@@ -482,8 +444,10 @@ int main(int argc, char *argv[])
         //				RTM MIGRATION	                     	 	//
 	//////////////////////////////////////////////////////////////////////////////////
 
-	memset(imag, 0, sizeof(float) * nz * nx);
-	memset(imag_filter, 0, sizeof(float) * nz * nx);
+	//&memset(imag, 0, sizeof(float) * nz * nx);
+	//&memset(imag_filter, 0, sizeof(float) * nz * nx);
+
+	memset(sections, 0, sizeof(float) * nz * nx * 2);
 
 	//-FILE *fdbackward_file;	// campo retropropagado dos dados //
 	//-char *fdbackward_name = "fdbackward.bin";
@@ -495,7 +459,7 @@ int main(int argc, char *argv[])
 	//-	fdforward_name = "fdforward.bin";
 
 	FILE *out_file;		// saida - dados migrados
-	char *out_name = "rtm_migrated_5.1.su";
+	char *out_name = "rtm_migrated_6.0.su";
 
 	int iframe_cross;
 	int chunk=0;
@@ -513,17 +477,26 @@ int main(int argc, char *argv[])
 		get_tr(itrc, &shotgather[itrc], ns, su_file);
 	}
 
+	//TEMPORARIO
+	for(ix=0;ix<nxx;++ix)
+	{
+		for(iz=0;iz<nzz;++iz)
+		{
+			fields[(iz)+(nzz*ix)].vel = vel[(iz)+(nzz*ix)];
+		}
+	}
+
 	gettimeofday(&start_princ,NULL);
 
     	for(ishot=0;ishot<nshots;++ishot)
  	{
-	
+	//&prcv,psrc,igx,igz,imag,imag_filter,p_1,p_2,p_aux(shared),p_swap
 	#pragma omp parallel if (is_parallel) num_threads(n_threads) default(none) \
-		shared(beta,blackmann,diff,dx,dtrec,deriv2,dt,dz,factor,gama_x,gama_z,ixx0,ixx1,igx,igz,	\
-			ixmig1,ishot,ixmig0,iframe,ixb,ixe,isx,ilanco,izb,isz,finish,it0,imag,imag_filter,	\
+		shared(beta,blackmann,diff,dx,dtrec,deriv2,dt,dz,factor,gama_x,gama_z,ixx0,ixx1,pos,		\
+			ixmig1,ishot,ixmig0,iframe,ixb,ixe,isx,ilanco,izb,isz,finish,it0,sections,fields,	\
 			imagtrace,ndtrtm,nshots,nzz,nxx,nrec,ns,nx,nz,nmigtrc,nt,nframes,shotidx,out_file,	\
-			out_name,prcv,psrc,p_1,p_2,p_aux,reclen,start,ttotal,shotgather,vel,window_x,x0,chunk,n_threads)\
-		private(delt,fonte,gama,ix,iz,itrc,invpgama,iconv,it,ircv,irec,iframe_cross,laplacian,mgama,source,t)
+			out_name,reclen,start,ttotal,shotgather,vel,window_x,x0,chunk,n_threads,frames)\
+		private(delt,fonte,gama,ix,iz,itrc,invpgama,iconv,it,ircv,irec,iframe_cross,laplacian,mgama,source,t,p_aux,p_swap)
 	{
 		
 		#pragma omp single nowait
@@ -553,11 +526,19 @@ int main(int argc, char *argv[])
 			//	converte unidades usando a palavra scalco do header 	//
 			// 	=== ATENCAO === 					//
 			// 	as palavras gelev e sdepth devem ser setadas no header 	//
-
+			
+			/*&
 			igx[ircv] = (int) floor( ( ((float)(shotgather[itrc].tr_header->gx))-((float)x0) )*\
 												(factor/dx) )+ixb;
 
 			igz[ircv] = (int) floor( (-1.0)*((float)(shotgather[itrc].tr_header->gelev)) *\
+												(factor/dz) )+izb;
+			&*/
+
+			pos[ircv].igx = (int) floor( ( ((float)(shotgather[itrc].tr_header->gx))-((float)x0) )*\
+												(factor/dx) )+ixb;
+
+			pos[ircv].igz = (int) floor( (-1.0)*((float)(shotgather[itrc].tr_header->gelev)) *\
 												(factor/dz) )+izb;
 
 			#pragma omp critical
@@ -567,7 +548,7 @@ int main(int argc, char *argv[])
 
 				isz       = (int) floor( ((float)(shotgather[itrc].tr_header->sdepth)) * (factor/dz) ) + izb;
 
-				ilanco = max(ilanco, fabs(isx-igx[ircv]));
+				ilanco = max(ilanco, fabs(isx-pos[ircv].igx));
  				//++ircv;
 			}
   		}
@@ -594,8 +575,8 @@ int main(int argc, char *argv[])
 			}
 			else
 			{
-				ixmig0 = max( min(minval(igx,nrec),isx)-ilanco/LFRAC, ixb);
-				ixmig1 = min( max(maxval(igx,nrec),isx)+ilanco/LFRAC, ixe);
+				ixmig0 = max( min(minval_igx(pos,nrec),isx)-ilanco/LFRAC, ixb);
+				ixmig1 = min( max(maxval_igx(pos,nrec),isx)+ilanco/LFRAC, ixe);
 			}
 
 			printf("\tJANELA DE MIGRACAO do tiro\n");
@@ -711,8 +692,8 @@ int main(int argc, char *argv[])
 		{
 			for(iz=0;iz<nzz;++iz)
 			{
-				p_2[ (iz) + (ix*nzz)]  = 0.0;
-				p_1[ (iz) + (ix*nzz)]  = 0.0;
+				fields[(iz) + (ix*nzz)].p_1  = 0.0;
+				fields[(iz) + (ix*nzz)].p_2  = 0.0;
 			}
 		}
 
@@ -735,8 +716,10 @@ int main(int argc, char *argv[])
 
 			nframes = (nt%ndtrtm==0) ? nt/ndtrtm : (int) ceil( ((float)nt)/((float)ndtrtm) );
 
-			prcv = alloc3float(nframes,nz,nmigtrc);
-			if(prcv==NULL) { printf("Allocation of prcv[%d,%d,%d] failed!!!\n",nframes,nz,nmigtrc); }//return -1; }
+			//prcv = alloc3float(nframes,nz,nmigtrc);
+			//if(prcv==NULL) { printf("Allocation of prcv[%d,%d,%d] failed!!!\n",nframes,nz,nmigtrc); }//return -1; }
+
+			frames = (p_frames*) malloc(sizeof(p_frames)*nframes*nz*nmigtrc);
 
 			//-prcv = alloc2float(nz,nmigtrc);
 			//-if(prcv==NULL) { printf("Allocation of prcv[%d,%d] failed!!!\n",nz,nmigtrc); }//return -1; }
@@ -772,7 +755,7 @@ int main(int argc, char *argv[])
 
 					for(itrc=0;itrc<nrec;++itrc)
 					{
-						if( (ix == (igx[itrc]-1)) && (iz == (igz[itrc]-1)) )
+						if( (ix == (pos[itrc].igx-1)) && (iz == (pos[itrc].igz-1)) )
 						{
 							source = (dx*dx) * \
 							interp_trace(ttotal-t,ns,0.0,dtrec,		\
@@ -784,44 +767,29 @@ int main(int argc, char *argv[])
 					gama = gama_x[ix] + gama_z[iz]; 
 					invpgama  = ( 1.0 / (1.0 + gama) );
 					mgama     = 1.0 - gama;
-/*
 
 					//	aumentar a ordem do operador de diferencas finitas: 		//
-					laplacian = 2.0 * deriv2[0] * p_2[ (iz) + (ix*nzz)];
+					laplacian = 2.0 * deriv2[0] * fields[(iz) + (ix*nzz)].p_2;
 
 					for(iconv=1;iconv<DRVLEN;++iconv)
 					{
-						laplacian = laplacian + deriv2[iconv] 		* \
-			      				(					  \
-								p_2[ (iz-iconv) + (ix*nzz) ] 	+ \
-								p_2[ (iz+iconv) + (ix*nzz) ] 	+ \
-								p_2[ (iz) + ((ix-iconv)*nzz) ]	+ \
-								p_2[ (iz) + ((ix+iconv)*nzz) ] 	  \
-							);
-					}
-*/	
-
-					//	aumentar a ordem do operador de diferencas finitas: 		//
-					laplacian = 2.0 * deriv2[0] * p_2[ (iz) + (ix*nzz)];
-
-					for(iconv=DRVLEN-1;iconv>0;--iconv)
-					{
 						laplacian = laplacian + deriv2[iconv] 				* \
-			      				(					  \ 
-								p_2[ (iz-iconv) + (ix*nzz) ] 	+ \
-								p_2[ (iz+iconv) + (ix*nzz) ] 	+ \
-								p_2[ (iz) + ((ix-iconv)*nzz) ]	+ \
-								p_2[ (iz) + ((ix+iconv)*nzz) ]    \						
+			      				(							  \
+								fields[ (iz-iconv) + (ix*nzz) ].p_2 	+ \
+								fields[ (iz+iconv) + (ix*nzz) ].p_2 	+ \
+								fields[ (iz) + ((ix-iconv)*nzz) ].p_2	+ \
+								fields[ (iz) + ((ix+iconv)*nzz) ].p_2 	  \
 							);
 					}
 
-					p_1[ (iz) + (ix*nzz) ] = invpgama * ( 	 2.0 * \
-							    p_2[ (iz) + (ix*nzz) ] - mgama * \
-							    p_1[ (iz) + (ix*nzz) ] + 	       \
-						            vel[(iz) + (ix*nzz)] * ( laplacian - source ) );
+					fields[ (iz) + (ix*nzz) ].p_1 = invpgama * ( 	 2.0 * \
+							    fields[ (iz) + (ix*nzz) ].p_2 - mgama * \
+							    fields[ (iz) + (ix*nzz) ].p_1 + 	       \
+						            fields[ (iz) + (ix*nzz) ].vel * ( laplacian - source ) );
 				}
 			}
 
+			/*
 			#pragma omp single
 			{
 				// mega - new swap fields
@@ -829,28 +797,66 @@ int main(int argc, char *argv[])
 				p_2    = p_1;
 				p_1    = p_aux;
 			}
+			*/
 
-			#pragma omp single nowait
+			#pragma omp for schedule(static,100)
+			for(p_aux=&(fields[ (ixx0*nzz) ].p_1);p_aux<=&(fields[ (ixx1*nzz) ].p_1);p_aux+=3)
 			{
-				if( ( it % ndtrtm) == 0)
+				p_swap     = *(p_aux);
+				*(p_aux)   = *(p_aux+1);
+				*(p_aux+1) = p_swap;
+			}
+			
+			
+			/*
+			#pragma omp for
+			for(ix=ixx0;ix<ixx1;++ix)
+			{
+				for(iz=0;iz<nzz;++iz)
+				{
+					p_swap = fields[ (iz) + (ix*nzz) ].p_2;
+					fields[ (iz) + (ix*nzz) ].p_2 = fields[ (iz) + (ix*nzz) ].p_1;
+					fields[ (iz) + (ix*nzz) ].p_1 = p_swap;
+				}
+			}
+			*/
+
+		//#pragma omp single nowait
+		//{
+			if( ( it % ndtrtm) == 0)
+			{
+				//if( (iframe%100==0) )
+				//	printf("\tit: %d - backward frames %d completed\n", it, iframe);
+	  			
+				//#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
+					shared(nmigtrc,prcv,iframe,nz,p_2,ixmig0,nzz) private(ix)					
+				//for(ix=0;ix<nmigtrc;++ix)
+				//	memcpy(prcv + (iframe*nz*nmigtrc) + (ix*nz),
+				//		p_2 + ((ixmig0-1+ix)*nzz) + (nborda), nz * sizeof(float) );
+
+				#pragma omp for
+				for(ix=0;ix<nmigtrc;++ix)
+				{
+					for(iz=0;iz<nz;++iz)
+					{
+						frames[(iframe*nz*nmigtrc) + (iz) + (ix*nz)].prcv = \
+							fields[((ixmig0-1+ix)*nzz) + (iz) + (nborda)].p_2;
+							//*(p_2 + ((ixmig0-1+ix)*nzz) + (iz) + (nborda));
+					}
+				}
+
+				//-for(ix=0;ix<nmigtrc;++ix)
+				//-	memcpy(prcv+(ix*nz), p_2 + ((ixmig0-1+ix)*nzz)+(nborda), nz*sizeof(float));
+
+				//-fwrite(prcv, sizeof(float), nz * nmigtrc, fdbackward_file);
+				#pragma omp single nowait
 				{
 					if( (iframe%100==0) )
 						printf("\tit: %d - backward frames %d completed\n", it, iframe);
-
-		  			//#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
-						shared(nmigtrc,prcv,iframe,nz,p_2,ixmig0,nzz) private(ix)					
-					for(ix=0;ix<nmigtrc;++ix)
-						memcpy(prcv + (iframe*nz*nmigtrc) + (ix*nz),
-							p_2 + ((ixmig0-1+ix)*nzz) + (nborda), nz * sizeof(float) );
-
-					//-for(ix=0;ix<nmigtrc;++ix)
-					//-	memcpy(prcv+(ix*nz), p_2 + ((ixmig0-1+ix)*nzz)+(nborda), nz*sizeof(float));
-
-					//-fwrite(prcv, sizeof(float), nz * nmigtrc, fdbackward_file);
-
 					++iframe;
 				}
 			}
+		//}
 		} // fim de modelagem
 
 		#pragma omp single nowait
@@ -894,8 +900,8 @@ int main(int argc, char *argv[])
 		{
 			for(iz=0;iz<nzz;++iz)
 			{
-				p_2[ (iz) + (ix*nzz)] = 0.0;
-				p_1[ (iz) + (ix*nzz)] = 0.0;
+				fields[ (iz) + (ix*nzz)].p_1 = 0.0;
+				fields[ (iz) + (ix*nzz)].p_2 = 0.0;
 			}
 		}	
 
@@ -904,15 +910,17 @@ int main(int argc, char *argv[])
 			//-prcv = alloc2float(nz,nmigtrc);
 			//-if(prcv==NULL) { printf("Allocation of prcv[%d,%d] failed!!!\n",nz,nmigtrc); }//return -1;}
 
-			psrc = alloc3float(nframes,nz,nmigtrc);
-			if(psrc==NULL) { printf("Allocation of psrc[%d,%d,%d] failed!!!\n",nframes,nz,nmigtrc); }//return -1;}
+			// cache
+			//psrc = alloc3float(nframes,nz,nmigtrc);
+			//if(psrc==NULL) { printf("Allocation of psrc[%d,%d,%d] failed!!!\n",nframes,nz,nmigtrc); }//return -1;}
+			
 			//-psrc = alloc2float(nz,nmigtrc);
 			//-if(psrc==NULL) { printf("Allocation of psrc[%d,%d] failed!!!\n",nz,nmigtrc); }//return -1;}		
 
 			iframe = 0;
 
 			gettimeofday(&start,NULL);
-			chunk = (ixx0-ixx1)/n_threads;;
+			//chunk = (ixx0-ixx1)/n_threads;;
 		}
 
 		// modelando a evolucao do campo de pressao //
@@ -938,42 +946,29 @@ int main(int argc, char *argv[])
 					gama = gama_x[ix] + gama_z[iz]; 
 					invpgama  = 1.0 / ( 1.0 + gama);
 					mgama     = 1.0 - gama;
-/*
+
 					//	aumentar a ordem do operador de diferencas finitas: 		//
-					laplacian = 2.0 * deriv2[0] * p_2[ (iz) + (ix*nzz)];
+					laplacian = 2.0 * deriv2[0] * fields[ (iz) + (ix*nzz)].p_2;
 
 					for(iconv=1;iconv<DRVLEN;++iconv)
 					{
-						laplacian = laplacian + deriv2[iconv] 		* \
-			      				(					  \
-								p_2[ (iz-iconv) + (ix*nzz) ] 	+ \
-								p_2[ (iz+iconv) + (ix*nzz) ] 	+ \
-								p_2[ (iz) + ((ix-iconv)*nzz) ]	+ \
-								p_2[ (iz) + ((ix+iconv)*nzz) ] 	  \
+						laplacian = laplacian + deriv2[iconv] 			* \
+			      				(					  	  \
+								fields[ (iz-iconv) + (ix*nzz) ].p_2 	+ \
+								fields[ (iz+iconv) + (ix*nzz) ].p_2 	+ \
+								fields[ (iz) + ((ix-iconv)*nzz) ].p_2	+ \
+								fields[ (iz) + ((ix+iconv)*nzz) ].p_2 	  \
 							);
 					}
-*/
 
-					laplacian = 2.0 * deriv2[0] * p_2[ (iz) + (ix*nzz)];
-
-					for(iconv=DRVLEN-1;iconv>0;--iconv)
-					{
-						laplacian = laplacian + deriv2[iconv] 				* \
-			      				(					  \ 
-								p_2[ (iz-iconv) + (ix*nzz) ] 	+ \
-								p_2[ (iz+iconv) + (ix*nzz) ] 	+ \
-								p_2[ (iz) + ((ix-iconv)*nzz) ]	+ \
-								p_2[ (iz) + ((ix+iconv)*nzz) ]    \						
-							);
-					}
-		
-					p_1[ (iz) + (ix*nzz) ] = invpgama * ( 	 2.0 * \
-							    p_2[ (iz) + (ix*nzz) ] - mgama * \
-							    p_1[ (iz) + (ix*nzz) ] + 	       \
-						            vel[(iz) + (ix*nzz)] * ( laplacian - source ) );
+					fields[ (iz) + (ix*nzz) ].p_1 = invpgama * ( 	 2.0 * \
+							    fields[ (iz) + (ix*nzz) ].p_2 - mgama * \
+							    fields[ (iz) + (ix*nzz) ].p_1 + 	       \
+						            fields[(iz) + (ix*nzz)].vel * ( laplacian - source ) );
 				}
 			}
 			
+			/*
 			#pragma omp single
 			{
 				// mega - new swap fields
@@ -981,26 +976,76 @@ int main(int argc, char *argv[])
 				p_2    = p_1;
 				p_1    = p_aux;
 			}
+			*/
 
-			#pragma omp single nowait
+			
+			#pragma omp for schedule(static,100)
+			for(p_aux=&(fields[ (ixx0*nzz) ].p_1);p_aux<=&(fields[ (ixx1*nzz) ].p_1);p_aux+=3)
 			{
-				if( ( it % ndtrtm) == 0)
+				p_swap     = *(p_aux);
+				*(p_aux)   = *(p_aux+1);
+				*(p_aux+1) = p_swap;
+			}
+			
+			/*
+			#pragma omp for
+			for(ix=ixx0;ix<ixx1;++ix)
+			{
+				for(iz=0;iz<nzz;++iz)
+				{
+					p_swap = fields[ (iz) + (ix*nzz) ].p_2;
+					fields[ (iz) + (ix*nzz) ].p_2 = fields[ (iz) + (ix*nzz) ].p_1;
+					fields[ (iz) + (ix*nzz) ].p_1 = p_swap;
+				}
+			}
+			*/
+		//#pragma omp single nowait
+		//{
+			if( ( it % ndtrtm) == 0)
+			{
+				//if( (iframe%100==0) ) 
+				//	printf("\tit: %d - forward frames %d completed\n", it, iframe);
+
+				//#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
+					shared(nmigtrc,psrc,iframe,nz,p_2,ixmig0,nzz) private(ix)
+				//for(ix=0;ix<nmigtrc;++ix)
+				//	memcpy(psrc + (iframe*nz*nmigtrc) + (ix*nz), 
+				//		p_2 + ((ixmig0-1+ix)*nzz) + (nborda), nz * sizeof(float) );
+
+//PAREI AQUI
+				/*
+				#pragma omp for //fields[ (ixx1*nzz) ].p_1
+				for(p_aux=&(frames[(iframe*nz*nmigtrc)].psrc);p_aux<=&(frames[(iframe*nz*nmigtrc)+(nzz)].psrc);p_aux+=2)
+				{
+					*(p_aux2) = fields[((ixmig0-1+ix)*nzz) + (nborda)].p_2;
+					*(p_aux) = *(p_aux2);
+					p_aux2++;
+				}
+				*/
+				
+				#pragma omp for
+				for(ix=0;ix<nmigtrc;++ix)
+				{
+					for(iz=0;iz<nz;++iz)
+					{
+						frames[(iframe*nz*nmigtrc) + (iz) + (ix*nz)].psrc = \
+							fields[((ixmig0-1+ix)*nzz) + (iz) + (nborda)].p_2;
+							//*(p_2 + ((ixmig0-1+ix)*nzz) + (iz) + (nborda));
+					}
+				}
+				
+
+				//-if(write_forward_file)
+				//-	fwrite(psrc, sizeof(float), nz * nmigtrc, fdforward_file);
+				
+				#pragma omp single nowait
 				{
 					if( (iframe%100==0) ) 
 						printf("\tit: %d - forward frames %d completed\n", it, iframe);
-
-					//#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none) \
-						shared(nmigtrc,psrc,iframe,nz,p_2,ixmig0,nzz) private(ix)
-					for(ix=0;ix<nmigtrc;++ix)
-						memcpy(psrc + (iframe*nz*nmigtrc) + (ix*nz), p_2 + ((ixmig0-1+ix)*nzz) + (nborda), \
-												nz * sizeof(float) );
-
-					//-if(write_forward_file)
-					//-	fwrite(psrc, sizeof(float), nz * nmigtrc, fdforward_file);
-			
 					++iframe;
 				}
 			}
+		//}
 		} // fim de modelagem //
 
 		#pragma omp single nowait
@@ -1047,11 +1092,15 @@ int main(int argc, char *argv[])
 			{
 				itrc = (ix-ixx0) % (nmigtrc);
 
-				for(iz=0;iz<nz;++iz)
-					imag[(iz) + (ix*nz)]  = imag[(iz) + (ix*nz)]    + ( window_x[ix] * \
+				//for(iz=0;iz<nz;++iz)
+				//	imag[(iz) + (ix*nz)]  = imag[(iz) + (ix*nz)]    + ( window_x[ix] * \
 							psrc[ (iframe_cross*nz*nmigtrc) + (iz) + (itrc*nz)] * \
 							prcv[ (irec*nz*nmigtrc)         + (iz) + (itrc*nz)] );
 
+				for(iz=0;iz<nz;++iz)
+					sections[(iz) + (ix*nz)].imag  = sections[(iz) + (ix*nz)].imag + ( window_x[ix] * \
+							frames[(iframe_cross*nz*nmigtrc) + (iz) + (itrc*nz)].psrc * \
+							frames[(irec*nz*nmigtrc) + (iz) + (itrc*nz)].prcv );
 				//++itrc;
 			}
 
@@ -1085,8 +1134,9 @@ int main(int argc, char *argv[])
 			//-free2float(prcv);
 			//-free2float(psrc);
 
-			free3float(prcv);
-			free3float(psrc);
+			//&free3float(prcv);
+			//&free3float(psrc);
+			free(frames);
 
 			//-fclose(fdbackward_file);
 
@@ -1107,20 +1157,20 @@ int main(int argc, char *argv[])
 		{
 			for(iz=(DRVLEN-1);iz<(nz-DRVLEN);iz++)
 			{
-				laplacian = 2.0 * deriv2[0] * imag[(iz) + (ix*nz)];
+				laplacian = 2.0 * deriv2[0] * sections[(iz) + (ix*nz)].imag;
 
 				for(iconv=1;iconv<DRVLEN;++iconv)
 				{
 					laplacian = laplacian + deriv2[iconv] 			* \
 						(						  \
-							imag[(iz-iconv) + (ix*nz)        ]	+ \
-							imag[(iz+iconv) + (ix*nz)        ]	+ \
-							imag[(iz)       + ((ix-iconv)*nz)]	+ \
-							imag[(iz)       + ((ix+iconv)*nz)]  	  \
+							sections[(iz-iconv) + (ix*nz)        ].imag	+ \
+							sections[(iz+iconv) + (ix*nz)        ].imag	+ \
+							sections[(iz)       + ((ix-iconv)*nz)].imag	+ \
+							sections[(iz)       + ((ix+iconv)*nz)].imag  	  \
 						);
 				}
 
-				imag_filter[(iz) + (ix*nz)] = laplacian;
+				sections[(iz) + (ix*nz)].imag_filter = laplacian;
 			}
 		}
 
@@ -1139,18 +1189,25 @@ int main(int argc, char *argv[])
 			{
 
 				if( (out_file = fopen(out_name, "wb")) == NULL ) { printf("Error opening out file\n"); }//return -1; }
-
 				//#pragma omp parallel for if (is_parallel) num_threads(n_threads) default(none)	\
 					shared(nz,nx,out_file,imag_filter) private(ix) firstprivate(imagtrace)
-				for(ix=0;ix<nx;ix++)
+				for(ix=0;ix<nx;++ix)
 				{
 					imagtrace.tr_header->tracl = ix + 1;
+
+					for(iz=0;iz<nz;++iz)
+					{
+						imagtrace.tr_data[iz] = sections[(iz)+(ix*nz)].imag_filter;
+					}
 
 					//memcpy(imagtrace.tr_data, imag_filter + (ix*nz), nz * sizeof(float) );
 					//put_tr(ix, &imagtrace, nz, out_file);
 				
+					//&fwrite(imagtrace.tr_header, HDRBYTES, 1, out_file);
+					//&fwrite(imag_filter + (ix*nz), sizeof(float), nz, out_file);
+
 					fwrite(imagtrace.tr_header, HDRBYTES, 1, out_file);
-					fwrite(imag_filter + (ix*nz), sizeof(float), nz, out_file);
+					fwrite(imagtrace.tr_data, sizeof(float), nz, out_file);
 				}
 
 				fclose(out_file);
@@ -1160,6 +1217,7 @@ int main(int argc, char *argv[])
 		}
 
 		} // end of parallel section
+
 	} // END LOOP OF SHOTS
 
 	gettimeofday(&finish_princ,NULL);
@@ -1182,8 +1240,10 @@ int main(int argc, char *argv[])
 	fclose(su_file);
 
 	free1int(shotidx);
-	free1int(igz);
-	free1int(igx);
+	
+	//&free1int(igz);
+	//&free1int(igx);
+	free(pos);
 
 	free1float(gama_x);
 	free1float(gama_z);
@@ -1191,12 +1251,14 @@ int main(int argc, char *argv[])
 	free1float(trace.tr_data);
 	free1float(imagtrace.tr_data);
 
-	free2float(imag);
-	free2float(imag_filter);
-	free2float(vel);
+	//&free2float(imag);
+	//&free2float(imag_filter);
+	free(sections);
 
-	free2float(p_1);
-	free2float(p_2);
+	//free2float(vel);
+	//free2float(p_1);
+	//free2float(p_2);
+	free(fields);
 
 	//TODO: dealocate all shotgather
 	free1su_trace(shotgather);

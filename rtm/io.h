@@ -5,6 +5,34 @@
 #include <sys/time.h>
 //#include <omp.h>
 
+
+/********************************************************************************/
+/*			 CACHE OPTIMIZATION STRUCTURES				*/
+
+typedef struct _p_frames{
+	float prcv;
+	float psrc;
+}p_frames;
+
+typedef struct _trace_pos{
+	int igx;
+	int igz;
+}trace_pos;
+
+typedef struct _mig_section{
+	float imag;
+	float imag_filter;
+}mig_section;
+
+typedef struct _wave_fields{
+	float p_1;
+	float p_2;
+	float vel;
+}wave_fields;
+
+/********************************************************************************/
+
+
 //////////////////////////////////////////////////////////
 //			MACROS				//
 //////////////////////////////////////////////////////////
@@ -79,7 +107,7 @@
 //			SEISMIC FUNCTIONS			//
 //////////////////////////////////////////////////////////////////
 
-float interp_trace(float, int, float, float, float *);
+double interp_trace(float, int, float, float, float *);
 
 void get_vel_model(float*, FILE*, size_t, size_t, size_t);
 
@@ -102,6 +130,9 @@ float min_f(float, float);
 
 int maxval(int *, int);
 int minval(int *, int);
+
+int maxval_igx(trace_pos *, int);
+int minval_igx(trace_pos *, int);
 
 //////////////////////////////////////////////////////////////////
 //			COPY FUNCTION				//
